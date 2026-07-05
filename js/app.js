@@ -1,29 +1,55 @@
 // ============================================================
-// Cromos Copa 2026 — lógica do app
+// Cromos Copa 2026 — lógica do app (multi-álbum)
 // ============================================================
 
 const STORE_KEY = 'copa2026_album_v1';
 
 const state = loadState();
 
+function emptyAlbumState() {
+  return { owned: {}, dups: {}, labels: {} };
+}
+
+// Marca como coladas as figurinhas com o:1 na base (lista real do usuário)
+function seededAlbumState(albumId) {
+  const a = emptyAlbumState();
+  for (const sec of ALBUMS[albumId].sections) {
+    sec.stickers.forEach((s, i) => {
+      if (s.o) a.owned[`${sec.code}-${i + 1}`] = true;
+    });
+  }
+  return a;
+}
+
 function loadState() {
   const base = {
-    owned: {},        // 'BRA-5': true
-    dups: {},         // 'BRA-5': 2  (repetidas além da colada)
-    labels: {},       // 'BRA-5': 'Vini Jr.'
-    alerts: {},       // eventId: true
-    notified: {},     // eventId: true (alerta já disparado)
-    matches: [],      // cache da agenda/resultados
+    currentAlbum: 'road',
+    albums: {},
+    alerts: {},        // eventId: true
+    notified: {},      // eventId: true (alerta já disparado)
+    matches: [],       // cache da agenda/resultados
     lastSync: null,
-    openSections: { FWC: true },
+    openSections: {},
     tab: 'album',
     matchFilter: 'proximos',
   };
+  let st = base;
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (raw) return Object.assign(base, JSON.parse(raw));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      st = Object.assign(base, parsed);
+      // migração da versão antiga (dados soltos = álbum oficial)
+      if (parsed.owned && !parsed.albums) {
+        st.albums = { copa: { owned: parsed.owned, dups: parsed.dups || {}, labels: parsed.labels || {} } };
+        delete st.owned; delete st.dups; delete st.labels;
+      }
+    }
   } catch (e) { console.warn('Falha ao carregar dados salvos', e); }
-  return base;
+  if (!st.albums.road) st.albums.road = seededAlbumState('road');
+  if (!st.albums.copa) st.albums.copa = emptyAlbumState();
+  if (!ALBUMS[st.currentAlbum]) st.currentAlbum = 'road';
+  return st;
 }
 
 let saveTimer = null;
@@ -35,11 +61,21 @@ function save() {
   }, 150);
 }
 
+// ---------- acesso ao álbum atual ----------
+function curAlbum() { return ALBUMS[state.currentAlbum]; }
+function curData() { return state.albums[state.currentAlbum]; }
+function curSections() { return curAlbum().sections; }
+
 // ---------- utilidades ----------
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
-function stickerId(code, num) { return `${code}-${num}`; }
+function stickerId(code, idx) { return `${code}-${idx}`; }
+
+function stickerLabel(section, idx) {
+  const id = stickerId(section.code, idx);
+  return curData().labels[id] || section.stickers[idx - 1].label;
+}
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -53,34 +89,36 @@ function toast(msg) {
   t.textContent = msg;
   document.body.appendChild(t);
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.remove(), 2600);
+  toastTimer = setTimeout(() => t.remove(), 3000);
 }
 
 // ---------- estatísticas ----------
-function sectionStats(code) {
-  const section = SECTIONS.find(s => s.code === code);
+function sectionStats(section) {
+  const data = curData();
   let owned = 0, dups = 0;
-  for (let n = 1; n <= section.count; n++) {
-    const id = stickerId(code, n);
-    if (state.owned[id]) owned++;
-    dups += state.dups[id] || 0;
+  for (let i = 1; i <= section.stickers.length; i++) {
+    const id = stickerId(section.code, i);
+    if (data.owned[id]) owned++;
+    dups += data.dups[id] || 0;
   }
-  return { owned, dups, total: section.count };
+  return { owned, dups, total: section.stickers.length };
 }
 
 function globalStats() {
-  let owned = 0, dups = 0;
-  for (const s of SECTIONS) {
-    const st = sectionStats(s.code);
+  let owned = 0, dups = 0, total = 0;
+  for (const s of curSections()) {
+    const st = sectionStats(s);
     owned += st.owned;
     dups += st.dups;
+    total += st.total;
   }
-  return { owned, dups, total: TOTAL_STICKERS, missing: TOTAL_STICKERS - owned };
+  return { owned, dups, total, missing: total - owned };
 }
 
 function renderHeader() {
   const g = globalStats();
-  const pct = ((g.owned / g.total) * 100);
+  const pct = g.total ? (g.owned / g.total) * 100 : 0;
+  $('#albumTitle').textContent = curAlbum().title;
   $('#statStrip').innerHTML = `
     <div class="stat"><b>${g.total}</b><span>Total</span></div>
     <div class="stat"><b style="color:var(--green)">${g.owned}</b><span>Tenho</span></div>
@@ -89,6 +127,25 @@ function renderHeader() {
     <div class="stat"><b>${pct.toFixed(1)}%</b><span>Álbum</span></div>`;
   $('#mainBar').style.width = pct + '%';
 }
+
+// ---------- troca de álbum ----------
+function albumSwitcherHtml() {
+  return `<div class="mode-row">
+    ${Object.values(ALBUMS).map(a =>
+      `<button class="chip-btn ${state.currentAlbum === a.id ? 'active' : ''}" data-album="${a.id}">${a.short}</button>`).join('')}
+  </div>`;
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-album]');
+  if (!btn) return;
+  if (state.currentAlbum !== btn.dataset.album) {
+    state.currentAlbum = btn.dataset.album;
+    state.openSections = {};
+    save();
+    render();
+  }
+});
 
 // ---------- navegação ----------
 function setTab(tab) {
@@ -124,8 +181,9 @@ let markMode = 'own'; // own | dup | dupminus | rename
 
 function renderAlbum(main) {
   main.innerHTML = `
+    ${albumSwitcherHtml()}
     <div class="searchbar">
-      <input id="searchInput" type="search" placeholder="Buscar: país, número (ex: BRA 7), jogador..." value="${esc(albumQuery)}">
+      <input id="searchInput" type="search" placeholder="Buscar: país, número, jogador..." value="${esc(albumQuery)}">
     </div>
     <div class="mode-row">
       <span class="hint">Ao tocar:</span>
@@ -140,25 +198,27 @@ function renderAlbum(main) {
     albumQuery = e.target.value;
     renderAlbumSections();
   });
-  $('.mode-row', main).addEventListener('click', e => {
-    const btn = e.target.closest('[data-mode]');
-    if (!btn) return;
-    markMode = btn.dataset.mode;
+  $$('.mode-row [data-mode]', main).forEach(b => b.addEventListener('click', () => {
+    markMode = b.dataset.mode;
     renderAlbum(main);
-  });
+  }));
   renderAlbumSections();
 }
 
-function matchesQuery(section, num) {
+// remove acentos para busca (Modrić -> modric)
+function norm(s) {
+  return String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function matchesQuery(section, idx) {
   if (!albumQuery.trim()) return true;
-  const q = albumQuery.trim().toLowerCase();
-  const id = stickerId(section.code, num);
-  const label = (state.labels[id] || defaultLabel(section.code, num)).toLowerCase();
-  const hay = `${section.code.toLowerCase()} ${section.name.toLowerCase()} ${section.code.toLowerCase()} ${num} ${label} grupo ${section.group || ''}`.toLowerCase();
-  // permite "bra 7" / "bra7" / "7" / "vini"
+  const q = norm(albumQuery.trim());
+  const s = section.stickers[idx - 1];
+  const label = norm(stickerLabel(section, idx));
+  const hay = norm(`${section.code} ${section.name} ${label} grupo ${section.group || ''}`);
   const qNorm = q.replace(/(\D)(\d)/, '$1 $2');
   return qNorm.split(/\s+/).every(part => {
-    if (/^\d+$/.test(part)) return String(num) === part;
+    if (/^\d+$/.test(part)) return String(s.n) === part || String(idx) === part;
     return hay.includes(part);
   });
 }
@@ -167,12 +227,12 @@ function renderAlbumSections() {
   const container = $('#albumSections');
   const searching = !!albumQuery.trim();
   let html = '';
-  for (const section of SECTIONS) {
-    const nums = [];
-    for (let n = 1; n <= section.count; n++) if (matchesQuery(section, n)) nums.push(n);
-    if (searching && nums.length === 0) continue;
+  for (const section of curSections()) {
+    const idxs = [];
+    for (let i = 1; i <= section.stickers.length; i++) if (matchesQuery(section, i)) idxs.push(i);
+    if (searching && idxs.length === 0) continue;
 
-    const st = sectionStats(section.code);
+    const st = sectionStats(section);
     const open = searching || state.openSections[section.code];
     const pct = (st.owned / st.total) * 100;
     html += `
@@ -184,7 +244,7 @@ function renderAlbumSections() {
           <span>${open ? '▾' : '▸'}</span>
         </div>
         <div class="team-mini-bar"><i style="width:${pct}%"></i></div>
-        ${open ? renderStickerGrid(section, nums) : ''}
+        ${open ? renderStickerGrid(section, idxs) : ''}
       </div>`;
   }
   container.innerHTML = html || '<div class="empty">Nada encontrado para essa busca.</div>';
@@ -211,17 +271,19 @@ function renderAlbumSections() {
   };
 }
 
-function renderStickerGrid(section, nums) {
+function renderStickerGrid(section, idxs) {
+  const data = curData();
   let cells = '';
-  for (const n of nums) {
-    const id = stickerId(section.code, n);
-    const owned = !!state.owned[id];
-    const dups = state.dups[id] || 0;
-    const label = state.labels[id] || defaultLabel(section.code, n);
+  for (const i of idxs) {
+    const s = section.stickers[i - 1];
+    const id = stickerId(section.code, i);
+    const owned = !!data.owned[id];
+    const dups = data.dups[id] || 0;
+    const label = stickerLabel(section, i);
     cells += `
       <div class="sticker ${owned ? 'owned' : ''}" data-id="${id}" title="${esc(label)}">
         ${dups ? `<span class="dupbadge">×${dups}</span>` : ''}
-        <div class="num">${section.code} ${n}</div>
+        <div class="num">${s.n != null ? `${section.code} ${s.n}` : '★'}</div>
         <div class="lbl">${esc(label)}</div>
       </div>`;
   }
@@ -234,30 +296,33 @@ function renderStickerGrid(section, nums) {
 }
 
 function handleStickerTap(id) {
-  const [code, numStr] = id.split('-');
-  const num = parseInt(numStr, 10);
+  const data = curData();
+  const [code, idxStr] = id.split('-');
+  const idx = parseInt(idxStr, 10);
+  const section = curSections().find(s => s.code === code);
   if (markMode === 'own') {
-    if (state.owned[id]) {
-      delete state.owned[id];
-      delete state.dups[id];
+    if (data.owned[id]) {
+      delete data.owned[id];
+      delete data.dups[id];
     } else {
-      state.owned[id] = true;
+      data.owned[id] = true;
     }
   } else if (markMode === 'dup') {
-    state.owned[id] = true; // se tem repetida, tem a colada
-    state.dups[id] = (state.dups[id] || 0) + 1;
+    data.owned[id] = true; // se tem repetida, tem a colada
+    data.dups[id] = (data.dups[id] || 0) + 1;
   } else if (markMode === 'dupminus') {
-    if (state.dups[id]) {
-      state.dups[id]--;
-      if (!state.dups[id]) delete state.dups[id];
+    if (data.dups[id]) {
+      data.dups[id]--;
+      if (!data.dups[id]) delete data.dups[id];
     }
   } else if (markMode === 'rename') {
-    const current = state.labels[id] || defaultLabel(code, num);
-    const name = prompt(`Nome da figurinha ${code} ${num}:`, current);
+    const original = section.stickers[idx - 1].label;
+    const current = data.labels[id] || original;
+    const name = prompt(`Nome da figurinha (${section.name}):`, current);
     if (name !== null) {
       const trimmed = name.trim();
-      if (trimmed && trimmed !== defaultLabel(code, num)) state.labels[id] = trimmed;
-      else delete state.labels[id];
+      if (trimmed && trimmed !== original) data.labels[id] = trimmed;
+      else delete data.labels[id];
     }
   }
   save();
@@ -266,11 +331,12 @@ function handleStickerTap(id) {
 }
 
 function bulkMark(code, on) {
-  const section = SECTIONS.find(s => s.code === code);
-  for (let n = 1; n <= section.count; n++) {
-    const id = stickerId(code, n);
-    if (on) state.owned[id] = true;
-    else { delete state.owned[id]; delete state.dups[id]; }
+  const data = curData();
+  const section = curSections().find(s => s.code === code);
+  for (let i = 1; i <= section.stickers.length; i++) {
+    const id = stickerId(code, i);
+    if (on) data.owned[id] = true;
+    else { delete data.owned[id]; delete data.dups[id]; }
   }
   save();
   renderHeader();
@@ -278,14 +344,14 @@ function bulkMark(code, on) {
 }
 
 // ============================================================
-// ABA PAÍSES (resumo)
+// ABA PAÍSES / SEÇÕES (resumo)
 // ============================================================
 function renderResumo(main) {
-  const rows = SECTIONS.map(s => ({ s, st: sectionStats(s.code) }));
+  const rows = curSections().map(s => ({ s, st: sectionStats(s) }));
   const complete = rows.filter(r => r.st.owned === r.st.total).length;
-  let html = `
+  let html = albumSwitcherHtml() + `
     <div class="card">
-      <h2>🌎 Resumo por seleção <small style="color:var(--text-dim);font-weight:400">· ${complete}/${rows.length} completas</small></h2>`;
+      <h2>🌎 Resumo por seção <small style="color:var(--text-dim);font-weight:400">· ${complete}/${rows.length} completas</small></h2>`;
   for (const { s, st } of rows) {
     const pct = (st.owned / st.total) * 100;
     html += `
@@ -320,20 +386,20 @@ function renderResumo(main) {
 // ============================================================
 // ABA FALTAM
 // ============================================================
-function missingByCountry() {
+function missingBySection() {
+  const data = curData();
   const out = [];
-  for (const s of SECTIONS) {
-    const nums = [];
-    for (let n = 1; n <= s.count; n++) {
-      if (!state.owned[stickerId(s.code, n)]) nums.push(n);
-    }
-    if (nums.length) out.push({ section: s, nums });
+  for (const s of curSections()) {
+    const items = [];
+    s.stickers.forEach((stk, i) => {
+      if (!data.owned[stickerId(s.code, i + 1)]) items.push({ idx: i + 1, n: stk.n, label: stickerLabel(s, i + 1) });
+    });
+    if (items.length) out.push({ section: s, items });
   }
   return out;
 }
 
 function compressNums(nums) {
-  // [1,2,3,7,9,10] -> "1-3, 7, 9-10"
   const parts = [];
   let start = null, prev = null;
   for (const n of nums) {
@@ -346,10 +412,22 @@ function compressNums(nums) {
   return parts.join(', ');
 }
 
+// Formata itens (números conhecidos comprimidos + nomes das figurinhas sem número)
+function formatItems(items, withCount) {
+  const nums = items.filter(i => i.n != null).map(i => i.n).sort((a, b) => a - b);
+  const named = items.filter(i => i.n == null).map(i => i.label + (withCount && i.d > 1 ? ` (x${i.d})` : ''));
+  const numTxt = nums.length
+    ? (withCount
+        ? items.filter(i => i.n != null).sort((a, b) => a.n - b.n).map(i => i.d > 1 ? `${i.n} (x${i.d})` : `${i.n}`).join(', ')
+        : compressNums(nums))
+    : '';
+  return [numTxt, named.join('; ')].filter(Boolean).join(' · ');
+}
+
 function renderFaltam(main) {
-  const missing = missingByCountry();
-  const total = missing.reduce((s, m) => s + m.nums.length, 0);
-  let html = `
+  const missing = missingBySection();
+  const total = missing.reduce((s, m) => s + m.items.length, 0);
+  let html = albumSwitcherHtml() + `
     <div class="card">
       <h2>🔍 Figurinhas que faltam <small style="color:var(--text-dim);font-weight:400">· ${total}</small></h2>
       <p class="help">Toque em "Copiar lista" para mandar no grupo de trocas do WhatsApp.</p>
@@ -361,8 +439,8 @@ function renderFaltam(main) {
       html += `
         <div class="missing-line">
           <span class="flag">${m.section.flag}</span><b>${esc(m.section.name)}</b>
-          <small>(${m.nums.length} de ${m.section.count})</small><br>
-          <span class="nums">${m.section.code} ${compressNums(m.nums)}</span>
+          <small>(${m.items.length} de ${m.section.stickers.length})</small><br>
+          <span class="nums">${esc(formatItems(m.items, false))}</span>
         </div>`;
     }
   }
@@ -370,8 +448,8 @@ function renderFaltam(main) {
   main.innerHTML = html;
   const btn = $('#copyMissing');
   if (btn) btn.onclick = () => {
-    const text = 'FALTAM — Álbum Copa 2026:\n' + missing.map(m =>
-      `${m.section.flag} ${m.section.code}: ${compressNums(m.nums)}`).join('\n') +
+    const text = `FALTAM — ${curAlbum().title}:\n` + missing.map(m =>
+      `${m.section.flag} ${m.section.name}: ${formatItems(m.items, false)}`).join('\n') +
       `\nTotal: ${total} figurinhas`;
     copyText(text);
   };
@@ -380,23 +458,24 @@ function renderFaltam(main) {
 // ============================================================
 // ABA TROCAS (repetidas)
 // ============================================================
-function dupsByCountry() {
+function dupsBySection() {
+  const data = curData();
   const out = [];
-  for (const s of SECTIONS) {
+  for (const s of curSections()) {
     const items = [];
-    for (let n = 1; n <= s.count; n++) {
-      const d = state.dups[stickerId(s.code, n)] || 0;
-      if (d > 0) items.push({ n, d });
-    }
+    s.stickers.forEach((stk, i) => {
+      const d = data.dups[stickerId(s.code, i + 1)] || 0;
+      if (d > 0) items.push({ idx: i + 1, n: stk.n, label: stickerLabel(s, i + 1), d });
+    });
     if (items.length) out.push({ section: s, items });
   }
   return out;
 }
 
 function renderTrocas(main) {
-  const dups = dupsByCountry();
+  const dups = dupsBySection();
   const total = dups.reduce((s, m) => s + m.items.reduce((a, i) => a + i.d, 0), 0);
-  let html = `
+  let html = albumSwitcherHtml() + `
     <div class="card">
       <h2>🔁 Repetidas para troca <small style="color:var(--text-dim);font-weight:400">· ${total}</small></h2>
       <p class="help">Estas são as figurinhas que você tem além da colada — disponíveis para trocar.</p>
@@ -405,12 +484,11 @@ function renderTrocas(main) {
     html += '<div class="empty">Nenhuma repetida registrada ainda. Use o modo "+1 Repetida" na aba Álbum.</div>';
   } else {
     for (const m of dups) {
-      const txt = m.items.map(i => i.d > 1 ? `${i.n}(×${i.d})` : `${i.n}`).join(', ');
       html += `
         <div class="missing-line">
           <span class="flag">${m.section.flag}</span><b>${esc(m.section.name)}</b>
           <small>(${m.items.reduce((a, i) => a + i.d, 0)} repetidas)</small><br>
-          <span class="nums trade">${m.section.code} ${txt}</span>
+          <span class="nums trade">${esc(formatItems(m.items, true))}</span>
         </div>`;
     }
   }
@@ -418,8 +496,8 @@ function renderTrocas(main) {
   main.innerHTML = html;
   const btn = $('#copyDups');
   if (btn) btn.onclick = () => {
-    const text = 'TENHO PARA TROCA — Álbum Copa 2026:\n' + dups.map(m =>
-      `${m.section.flag} ${m.section.code}: ${m.items.map(i => i.d > 1 ? `${i.n} (x${i.d})` : i.n).join(', ')}`).join('\n') +
+    const text = `TENHO PARA TROCA — ${curAlbum().title}:\n` + dups.map(m =>
+      `${m.section.flag} ${m.section.name}: ${formatItems(m.items, true)}`).join('\n') +
       `\nTotal: ${total} figurinhas`;
     copyText(text);
   };
@@ -639,7 +717,7 @@ function checkAlerts() {
         ? `Começa em ${Math.max(1, Math.round(diffMin))} min! ${m.venue || ''}`
         : 'O jogo está começando!';
       if ('Notification' in window && Notification.permission === 'granted') {
-        try { new Notification(title, { body, icon: undefined }); } catch (e) { /* mobile precisa de SW */ }
+        try { new Notification(title, { body }); } catch (e) { /* mobile precisa de SW */ }
       }
       toast(`🔔 ${title} — ${body}`);
     }
@@ -657,19 +735,19 @@ setInterval(() => {
 // ============================================================
 function renderDados(main) {
   const g = globalStats();
-  main.innerHTML = `
+  main.innerHTML = albumSwitcherHtml() + `
     <div class="card">
-      <h2>📥 Importar minhas figurinhas</h2>
+      <h2>📥 Importar figurinhas <small style="color:var(--text-dim);font-weight:400">· ${esc(curAlbum().title)}</small></h2>
       <p class="help">
-        Cole a sua lista e o app marca tudo de uma vez. Formato: uma seleção por linha —
-        código ou nome do país, depois os números (aceita intervalos e repetidas com "x"):<br><br>
-        <b>BRA: 1, 2, 5-9, 12x3</b> &nbsp;(12x3 = tenho 1 colada + 2 repetidas)<br>
-        <b>FWC: 1-20</b> &nbsp;·&nbsp; <b>Argentina: 4 7 10</b>
+        Cole a sua lista e o app marca tudo de uma vez <b>no álbum selecionado acima</b>.
+        Uma seção por linha — código ou nome, depois os números (aceita intervalos e repetidas com "x"):<br><br>
+        <b>BEL: 6, 9, 17x3</b> &nbsp;(17x3 = tenho 1 colada + 2 repetidas)<br>
+        <b>HIST: 1-22</b> &nbsp;·&nbsp; <b>Colômbia: 2 3 5</b>
       </p>
       <h3>Figurinhas que TENHO</h3>
-      <textarea class="paste" id="pasteOwned" placeholder="BRA: 1-11, 14, 17x2&#10;ARG: 3, 5, 9&#10;FWC: 1-20"></textarea>
+      <textarea class="paste" id="pasteOwned" placeholder="BEL: 6, 9, 20&#10;COCA: 1-8&#10;HIST: 1-22"></textarea>
       <h3>Repetidas (opcional, se não usou "x" acima)</h3>
-      <textarea class="paste" id="pasteDups" placeholder="BRA: 5, 5, 9x4"></textarea>
+      <textarea class="paste" id="pasteDups" placeholder="COCA: 5, 5, 9x4"></textarea>
       <div class="btn-row">
         <button class="btn" id="importBtn">Importar e marcar</button>
       </div>
@@ -677,7 +755,7 @@ function renderDados(main) {
 
     <div class="card">
       <h2>💾 Backup</h2>
-      <p class="help">Você tem <b>${g.owned}</b> figurinhas marcadas e <b>${g.dups}</b> repetidas. Os dados ficam salvos neste aparelho — exporte um backup para não perder nada.</p>
+      <p class="help">Neste álbum você tem <b>${g.owned}</b> figurinhas marcadas e <b>${g.dups}</b> repetidas. Os dados (dos dois álbuns) ficam salvos neste aparelho — exporte um backup para não perder nada.</p>
       <div class="btn-row">
         <button class="btn" id="exportBtn">⬇️ Exportar backup (.json)</button>
         <button class="btn secondary" id="importFileBtn">⬆️ Restaurar backup</button>
@@ -686,16 +764,14 @@ function renderDados(main) {
     </div>
 
     <div class="card">
-      <h2>⚠️ Zerar álbum</h2>
-      <p class="help">Apaga todas as marcações (tenho, repetidas e nomes). Não afeta a agenda de jogos.</p>
-      <div class="btn-row"><button class="btn danger" id="resetBtn">Zerar tudo</button></div>
+      <h2>⚠️ Zerar álbum atual</h2>
+      <p class="help">Apaga todas as marcações do álbum <b>${esc(curAlbum().title)}</b> (tenho, repetidas e nomes). Não afeta o outro álbum nem a agenda de jogos.</p>
+      <div class="btn-row"><button class="btn danger" id="resetBtn">Zerar este álbum</button></div>
     </div>`;
 
   $('#importBtn').onclick = () => {
-    const ownedText = $('#pasteOwned').value;
-    const dupsText = $('#pasteDups').value;
-    const r1 = importList(ownedText, 'owned');
-    const r2 = importList(dupsText, 'dups');
+    const r1 = importList($('#pasteOwned').value, 'owned');
+    const r2 = importList($('#pasteDups').value, 'dups');
     save();
     renderHeader();
     const errs = [...r1.errors, ...r2.errors];
@@ -714,13 +790,13 @@ function renderDados(main) {
     reader.onload = () => {
       try {
         const data = JSON.parse(reader.result);
-        if (!data.owned && !data.dups) throw new Error('formato inválido');
-        Object.assign(state, {
-          owned: data.owned || {},
-          dups: data.dups || {},
-          labels: data.labels || {},
-          alerts: data.alerts || state.alerts,
-        });
+        if (data.albums) {
+          state.albums = Object.assign(state.albums, data.albums);
+        } else if (data.owned) {
+          // backup antigo (álbum oficial)
+          state.albums.copa = { owned: data.owned, dups: data.dups || {}, labels: data.labels || {} };
+        } else throw new Error('formato inválido');
+        if (data.alerts) state.alerts = data.alerts;
         save();
         render();
         toast('Backup restaurado ✓');
@@ -732,8 +808,8 @@ function renderDados(main) {
   };
 
   $('#resetBtn').onclick = () => {
-    if (confirm('Tem certeza? Isso apaga TODAS as marcações do álbum.')) {
-      state.owned = {}; state.dups = {}; state.labels = {};
+    if (confirm(`Tem certeza? Isso apaga TODAS as marcações do álbum "${curAlbum().title}".`)) {
+      state.albums[state.currentAlbum] = emptyAlbumState();
       save();
       render();
       toast('Álbum zerado.');
@@ -741,48 +817,53 @@ function renderDados(main) {
   };
 }
 
-// aceita: "BRA: 1, 2, 5-9, 12x3" | "Brasil 1 2 5-9" | "FWC 1-20"
+// aceita: "BEL: 6, 9, 17x3" | "Bélgica 6 9" | "HIST 1-22"
 function resolveSectionCode(token) {
   const t = token.trim().toLowerCase().replace(/[:\-–]$/, '').trim();
   if (!t) return null;
-  const byCode = SECTIONS.find(s => s.code.toLowerCase() === t);
+  const sections = curSections();
+  const byCode = sections.find(s => s.code.toLowerCase() === t);
   if (byCode) return byCode.code;
-  const byName = SECTIONS.find(s => s.name.toLowerCase() === t);
+  const byName = sections.find(s => s.name.toLowerCase() === t);
   if (byName) return byName.code;
-  const partial = SECTIONS.filter(s => s.name.toLowerCase().startsWith(t));
+  const partial = sections.filter(s => s.name.toLowerCase().startsWith(t));
   if (partial.length === 1) return partial[0].code;
   return null;
 }
 
 function importList(text, target) {
+  const data = curData();
   let count = 0;
   const errors = [];
   for (const rawLine of text.split(/\n+/)) {
     const line = rawLine.trim();
     if (!line) continue;
-    // separa o identificador da seleção dos números
     const m = line.match(/^([A-Za-zÀ-ÿ .'’-]+?)[\s:]+([\dxX,\s\-–;]+)$/);
     if (!m) { errors.push(line.slice(0, 25)); continue; }
     const code = resolveSectionCode(m[1]);
     if (!code) { errors.push(m[1].slice(0, 25) + '?'); continue; }
-    const section = SECTIONS.find(s => s.code === code);
+    const section = curSections().find(s => s.code === code);
+    // mapa: número do álbum -> índice da figurinha na seção
+    const byNum = {};
+    section.stickers.forEach((s, i) => { if (s.n != null) byNum[s.n] = i + 1; });
     const tokens = m[2].split(/[,;\s]+/).filter(Boolean);
+    const apply = (n, times) => {
+      const idx = byNum[n];
+      if (!idx) return;
+      const id = stickerId(code, idx);
+      if (target === 'owned') {
+        data.owned[id] = true;
+        if (times > 1) data.dups[id] = (data.dups[id] || 0) + (times - 1);
+      } else {
+        data.owned[id] = true;
+        data.dups[id] = (data.dups[id] || 0) + times;
+      }
+      count++;
+    };
     for (const tok of tokens) {
       const range = tok.match(/^(\d+)[\-–](\d+)$/);
       const mult = tok.match(/^(\d+)[xX](\d+)$/);
       const single = tok.match(/^(\d+)$/);
-      const apply = (n, times) => {
-        if (n < 1 || n > section.count) return;
-        const id = stickerId(code, n);
-        if (target === 'owned') {
-          state.owned[id] = true;
-          if (times > 1) state.dups[id] = (state.dups[id] || 0) + (times - 1);
-        } else {
-          state.owned[id] = true;
-          state.dups[id] = (state.dups[id] || 0) + times;
-        }
-        count++;
-      };
       if (range) {
         const a = parseInt(range[1], 10), b = parseInt(range[2], 10);
         for (let n = Math.min(a, b); n <= Math.max(a, b); n++) apply(n, 1);
@@ -799,10 +880,9 @@ function importList(text, target) {
 function exportBackup() {
   const data = {
     app: 'cromos-copa-2026',
+    version: 2,
     exportedAt: new Date().toISOString(),
-    owned: state.owned,
-    dups: state.dups,
-    labels: state.labels,
+    albums: state.albums,
     alerts: state.alerts,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });

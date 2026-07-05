@@ -1,9 +1,12 @@
 // ============================================================
-// Base de dados — Álbum Panini Copa do Mundo FIFA 2026
-// 980 figurinhas: seção especial FWC (20) + 48 seleções x 20
-// Numeração oficial: por seleção, com prefixo do país (ex: BRA 1..BRA 20)
+// Base de dados dos álbuns
+//  1) "Road to Copa 2026" (257 figurinhas) — álbum do usuário,
+//     transcrito da lista real, com as coladas pré-marcadas (o:1)
+//  2) "Copa 2026 oficial" (980 figurinhas) — Panini FIFA World Cup 2026:
+//     seção FWC (20) + 48 seleções x 20, numeração por país
 // ============================================================
 
+// ---------- Seleções e grupos da Copa (usado no álbum oficial e nos jogos) ----------
 const GROUPS = {
   A: ['MEX', 'RSA', 'KOR', 'CZE'],
   B: ['CAN', 'SUI', 'QAT', 'BIH'],
@@ -70,9 +73,345 @@ const TEAMS = {
   PAN: { name: 'Panamá', flag: '🇵🇦' },
 };
 
+// ============================================================
+// ÁLBUM 1 — Road to Copa 2026 (o álbum do usuário, 257 figurinhas)
+// Cada figurinha: { n: número no álbum (quando conhecido), label, o: 1 = já colada }
+// ============================================================
+const ROAD_SECTIONS = [
+  {
+    code: 'UZB', name: 'Uzbequistão', flag: '🇺🇿',
+    stickers: [
+      { label: "Emblema — O'zbekiston Futbol Assotsiatsiyasi" },
+      { label: 'We Are Uzbekistan (foto do time)' },
+      { n: 1, label: 'Utkir Yusupov' },
+      { n: 3, label: 'Farrukh Sayfiev' },
+      { n: 5, label: 'Umar Eshmurodov' },
+      { n: 6, label: 'Odiljon Hamrobekov' },
+      { n: 7, label: 'Rustam Ashurmatov' },
+      { n: 8, label: 'Otabek Shukurov' },
+      { n: 9, label: 'Abdukodir Khusanov' },
+      { n: 12, label: 'Jamshid Iskanderov' },
+      { n: 14, label: 'Azizbek Turgunboev' },
+      { n: 15, label: 'Jaloliddin Masharipov' },
+      { n: 16, label: 'Eldor Shomurodov' },
+      { n: 19, label: 'Igor Sergeev' },
+      { n: 20, label: 'Abbosbek Fayzullaev' },
+    ],
+  },
+  {
+    code: 'COL', name: 'Colômbia', flag: '🇨🇴',
+    stickers: [
+      { label: 'Emblema — Federación Colombiana de Fútbol' },
+      { label: 'We Are Colombia (foto do time)' },
+      { n: 2, label: 'Camilo Vargas' },
+      { n: 3, label: 'David Ospina' },
+      { n: 5, label: 'Yerry Mina' },
+      { n: 7, label: 'Johan Mojica' },
+      { n: 9, label: 'Santiago Arias' },
+      { n: 12, label: 'Richard Ríos' },
+      { n: 17, label: 'Jhon Arias' },
+      { label: 'Jhon Lucumí' },
+      { label: 'Dávinson Sánchez' },
+      { label: 'Jefferson Lerma' },
+      { label: 'Daniel Muñoz' },
+      { label: 'James Rodríguez' },
+      { label: 'Kevin Castaño' },
+      { label: 'Jhon Córdoba' },
+      { label: 'Luis Suárez' },
+      { label: 'Jorge Carrascal' },
+      { label: 'Luis Díaz' },
+    ],
+  },
+  {
+    code: 'ENG', name: 'Inglaterra', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+    stickers: [
+      { label: 'Emblema — The Football Association' },
+      { label: 'We Are England (foto do time)' },
+      { n: 2, label: 'Jordan Pickford' },
+      { n: 5, label: 'Ezri Konsa' },
+      { n: 11, label: 'Jude Bellingham' },
+      { n: 13, label: 'Dean Henderson' },
+      { n: 20, label: 'Ollie Watkins' },
+      { label: 'Reece James' },
+      { label: 'John Stones' },
+      { label: 'Dan Burn' },
+      { label: 'Marc Guéhi' },
+      { label: 'Jordan Henderson' },
+      { label: 'Declan Rice' },
+      { label: 'Trent Alexander-Arnold' },
+      { label: 'Harry Kane' },
+      { label: 'Anthony Gordon' },
+      { label: 'Cole Palmer' },
+      { label: 'Marcus Rashford' },
+      { label: 'Phil Foden' },
+      { label: 'Morgan Rogers' },
+      { label: 'Bukayo Saka' },
+    ],
+  },
+  {
+    code: 'CRO', name: 'Croácia', flag: '🇭🇷',
+    stickers: [
+      { label: 'Emblema — Hrvatski nogometni savez' },
+      { label: 'We Are Croatia (foto do time)' },
+      { n: 2, label: 'Dominik Livaković' },
+      { n: 3, label: 'Duje Ćaleta-Car' },
+      { n: 7, label: 'Josip Šutalo' },
+      { n: 9, label: 'Luka Modrić' },
+      { n: 10, label: 'Mateo Kovačić' },
+      { n: 16, label: 'Ivan Perišić' },
+      { n: 17, label: 'Marko Pašalić' },
+      { label: 'Kristijan Jakić' },
+      { label: 'Joško Gvardiol' },
+      { label: 'Josip Stanišić' },
+      { label: 'Martin Baturina' },
+      { label: 'Ante Budimir' },
+      { label: 'Petar Sučić' },
+      { label: 'Lovro Majer' },
+      { label: 'Andrej Kramarić' },
+      { label: 'Franjo Ivanović' },
+    ],
+  },
+  {
+    code: 'GHA', name: 'Gana', flag: '🇬🇭',
+    stickers: [
+      { label: 'Emblema — Ghana Football Association' },
+      { label: 'We Are Ghana (foto do time)' },
+      { n: 8, label: 'Caleb Yirenkyi' },
+      { n: 12, label: 'Kamaldeen Sulemana' },
+      { n: 14, label: 'Mohammed Kudus' },
+      { n: 15, label: 'Iñaki Williams' },
+      { n: 16, label: 'Jordan Ayew' },
+      { n: 19, label: 'Osman Bukari' },
+      { n: 20, label: 'Antoine Semenyo' },
+      { label: 'Lawrence Ati-Zigi' },
+      { label: 'Tariq Lamptey' },
+      { label: 'Mohammed Salisu' },
+      { label: 'Alexander Djiku' },
+      { label: 'Thomas Partey' },
+      { label: 'Alidu Seidu' },
+      { label: 'Salis Abdul Samed' },
+      { label: 'Joseph Paintsil' },
+    ],
+  },
+  {
+    code: 'PAN', name: 'Panamá', flag: '🇵🇦',
+    stickers: [
+      { label: 'Emblema — Federación Panameña de Fútbol' },
+      { label: 'We Are Panama (foto do time)' },
+      { n: 3, label: 'Luis Mejía' },
+      { n: 5, label: 'Andrés Andrade' },
+      { n: 6, label: 'Michael Amir Murillo' },
+      { n: 8, label: 'José Córdoba' },
+      { n: 9, label: 'César Blackman' },
+      { n: 10, label: 'Cristian Martínez' },
+      { n: 14, label: 'Édgar Bárcenas' },
+      { n: 15, label: 'Carlos Harvey' },
+      { n: 17, label: 'José Fajardo' },
+      { n: 18, label: 'Cecilio Waterman' },
+      { n: 19, label: 'José Luis Rodríguez' },
+      { n: 20, label: 'Alberto Quintero' },
+      { label: 'Orlando Mosquera' },
+      { label: 'Fidel Escobar' },
+      { label: 'Adalberto Carrasquilla' },
+      { label: 'Aníbal Godoy' },
+    ],
+  },
+  {
+    code: 'ECU', name: 'Equador', flag: '🇪🇨',
+    stickers: [
+      { label: 'Emblema — Federación Ecuatoriana de Fútbol', o: 1 },
+      { label: 'We Are Ecuador (foto do time)', o: 1 },
+      { n: 1, label: 'Hernán Galíndez' },
+      { n: 2, label: 'Ángelo Preciado', o: 1 },
+      { n: 4, label: 'Piero Hincapié' },
+      { n: 5, label: 'Pervis Estupiñán' },
+      { n: 6, label: 'Willian Pacho' },
+      { n: 8, label: 'Joel Ordóñez' },
+      { n: 10, label: 'Alan Franco' },
+      { n: 11, label: 'Kendry Páez' },
+      { n: 12, label: 'Gonzalo Valle', o: 1 },
+      { n: 15, label: 'Leonardo Campana' },
+      { n: 19, label: 'Kevin Rodríguez' },
+      { label: 'Moisés Caicedo', o: 1 },
+      { label: 'Enner Valencia', o: 1 },
+      { label: 'Gonzalo Plata', o: 1 },
+      { label: 'Pedro Vite', o: 1 },
+      { label: 'Alan Minda', o: 1 },
+      { label: 'Nilson Angulo', o: 1 },
+    ],
+  },
+  {
+    code: 'NED', name: 'Holanda', flag: '🇳🇱',
+    stickers: [
+      { label: 'Emblema — Koninklijke Nederlandse Voetbalbond', o: 1 },
+      { label: 'We Are Netherlands (foto do time)', o: 1 },
+      { n: 3, label: 'Virgil van Dijk' },
+      { n: 7, label: 'Nathan Aké' },
+      { n: 10, label: 'Tijjani Reijnders' },
+      { n: 16, label: 'Justin Kluivert' },
+      { n: 19, label: 'Wout Weghorst' },
+      { label: 'Bart Verbruggen', o: 1 },
+      { label: 'Denzel Dumfries', o: 1 },
+      { label: 'Jurriën Timber', o: 1 },
+      { label: 'Micky van de Ven', o: 1 },
+      { label: 'Jan Paul van Hecke', o: 1 },
+      { label: 'Jerdy Schouten', o: 1 },
+      { label: 'Frenkie de Jong', o: 1 },
+      { label: 'Ryan Gravenberch', o: 1 },
+      { label: 'Xavi Simons', o: 1 },
+      { label: 'Cody Gakpo', o: 1 },
+      { label: 'Memphis Depay', o: 1 },
+    ],
+  },
+  {
+    code: 'JPN', name: 'Japão', flag: '🇯🇵',
+    stickers: [
+      { label: 'Emblema — Japan Football Association', o: 1 },
+      { label: 'We Are Japan (foto do time)', o: 1 },
+      { n: 8, label: 'Kaishu Sano' },
+      { n: 9, label: 'Yuki Soma' },
+      { n: 12, label: 'Takefusa Kubo' },
+      { n: 14, label: 'Ritsu Doan' },
+      { n: 15, label: 'Keito Nakamura' },
+      { n: 18, label: 'Junya Ito' },
+      { n: 19, label: 'Koki Ogawa' },
+      { label: 'Tsuyoshi Watanabe', o: 1 },
+      { label: 'Henry Mochizuki', o: 1 },
+      { label: 'Ayumu Seko', o: 1 },
+      { label: 'Junnosuke Suzuki', o: 1 },
+      { label: 'Ao Tanaka', o: 1 },
+      { label: 'Shogo Taniguchi', o: 1 },
+      { label: 'Zion Suzuki', o: 1 },
+      { label: 'Takumi Minamino', o: 1 },
+    ],
+  },
+  {
+    code: 'SWE', name: 'Suécia', flag: '🇸🇪',
+    stickers: [
+      { label: 'Emblema — Svenska Fotbollförbundet', o: 1 },
+      { label: 'We Are Sweden (foto do time)', o: 1 },
+      { n: 1, label: 'Robin Olsen' },
+      { n: 6, label: 'Victor Nilsson Lindelöf' },
+      { n: 7, label: 'Gustaf Lagerbielke' },
+      { n: 8, label: 'Lucas Bergvall' },
+      { n: 10, label: 'Jesper Karlström' },
+      { n: 11, label: 'Yasin Ayari' },
+      { n: 12, label: 'Mattias Svanberg' },
+      { n: 14, label: 'Daniel Svensson' },
+      { n: 15, label: 'Ken Sema' },
+      { n: 17, label: 'Dejan Kulusevski' },
+      { label: 'Isak Hien', o: 1 },
+      { label: 'Gabriel Gudmundsson', o: 1 },
+      { label: 'Emil Holm', o: 1 },
+      { label: 'Viktor Johansson', o: 1 },
+      { label: 'Anthony Elanga', o: 1 },
+      { label: 'Alexander Isak', o: 1 },
+      { label: 'Viktor Gyökeres', o: 1 },
+    ],
+  },
+  {
+    code: 'TUN', name: 'Tunísia', flag: '🇹🇳',
+    stickers: [
+      { label: 'Emblema — Fédération Tunisienne de Football', o: 1 },
+      { label: 'We Are Tunisia (foto do time)', o: 1 },
+      { n: 2, label: 'Bechir Ben Saïd' },
+      { n: 5, label: 'Montassar Talbi' },
+      { n: 6, label: 'Yassine Meriah' },
+      { n: 8, label: 'Dylan Bronn' },
+      { n: 9, label: 'Ellyes Skhiri' },
+      { n: 17, label: 'Hazem Mastouri' },
+      { n: 18, label: 'Ismaël Gharbi' },
+      { label: 'Ali Abdi', o: 1 },
+      { label: 'Aymen Dahmen', o: 1 },
+      { label: 'Ali Maâloul', o: 1 },
+      { label: 'Aïssa Laïdouni', o: 1 },
+      { label: 'Hannibal Mejbri', o: 1 },
+      { label: 'Firas Ben Larbi', o: 1 },
+      { label: 'Elias Achouri', o: 1 },
+      { label: 'Elias Saad', o: 1 },
+      { label: 'Naïm Sliti', o: 1 },
+    ],
+  },
+  {
+    code: 'BEL', name: 'Bélgica', flag: '🇧🇪',
+    stickers: [
+      { label: 'Emblema — Union Royale Belge / KBVB', o: 1 },
+      { label: 'We Are Belgium (foto do time)', o: 1 },
+      { n: 6, label: 'Brandon Mechele' },
+      { n: 9, label: 'Youri Tielemans' },
+      { n: 11, label: 'Nicolas Raskin' },
+      { n: 17, label: 'Charles De Ketelaere' },
+      { n: 19, label: 'Loïs Openda' },
+      { n: 20, label: 'Romelu Lukaku' },
+      { label: 'Thibaut Courtois', o: 1 },
+      { label: 'Maxim De Cuyper', o: 1 },
+      { label: 'Arthur Theate', o: 1 },
+      { label: 'Thomas Meunier', o: 1 },
+      { label: 'Timothy Castagne', o: 1 },
+      { label: 'Zeno Debast', o: 1 },
+      { label: 'Amadou Onana', o: 1 },
+      { label: 'Hans Vanaken', o: 1 },
+      { label: 'Kevin De Bruyne', o: 1 },
+      { label: 'Leandro Trossard', o: 1 },
+      { label: 'Alexis Saelemaekers', o: 1 },
+      { label: 'Jérémy Doku', o: 1 },
+    ],
+  },
+  {
+    code: 'COCA', name: 'Coca-Cola', flag: '🥤',
+    stickers: [
+      { n: 1, label: 'Harry Kane (ENG)' },
+      { n: 2, label: 'Emiliano Martínez (ARG)' },
+      { n: 3, label: 'Santiago Giménez (MEX)' },
+      { n: 4, label: 'Lamine Yamal (ESP)' },
+      { n: 5, label: 'Joško Gvardiol (CRO)' },
+      { n: 6, label: 'Joshua Kimmich (GER)' },
+      { n: 7, label: 'Virgil van Dijk (NED)' },
+      { n: 8, label: 'Lautaro Martínez (ARG)' },
+      { n: 9, label: 'Enner Valencia (ECU)' },
+      { n: 10, label: 'Raúl Jiménez (MEX)' },
+      { n: 11, label: 'Gabriel Magalhães (BRA)' },
+      { n: 12, label: 'Alphonso Davies (CAN)' },
+      { n: 13, label: 'Jefferson Lerma (COL)' },
+      { n: 14, label: 'Federico Valverde (URU)' },
+      { n: 15, label: 'Weston McKennie (USA)' },
+      { n: 16, label: 'Edson Álvarez (MEX)' },
+    ],
+  },
+  {
+    code: 'HIST', name: 'História da Copa', flag: '🏆',
+    stickers: [
+      { n: 1, label: 'Uruguai 1930' },
+      { n: 2, label: 'Itália 1934' },
+      { n: 3, label: 'Itália 1938' },
+      { n: 4, label: 'Uruguai 1950' },
+      { n: 5, label: 'Alemanha FR 1954' },
+      { n: 6, label: 'Brasil 1958' },
+      { n: 7, label: 'Brasil 1962' },
+      { n: 8, label: 'Inglaterra 1966' },
+      { n: 9, label: 'Brasil 1970' },
+      { n: 10, label: 'Alemanha FR 1974' },
+      { n: 11, label: 'Argentina 1978' },
+      { n: 12, label: 'Itália 1982' },
+      { n: 13, label: 'Argentina 1986' },
+      { n: 14, label: 'Alemanha FR 1990' },
+      { n: 15, label: 'Brasil 1994' },
+      { n: 16, label: 'França 1998' },
+      { n: 17, label: 'Brasil 2002' },
+      { n: 18, label: 'Itália 2006' },
+      { n: 19, label: 'Espanha 2010' },
+      { n: 20, label: 'Alemanha 2014' },
+      { n: 21, label: 'França 2018' },
+      { n: 22, label: 'Argentina 2022' },
+    ],
+  },
+];
+
+// ============================================================
+// ÁLBUM 2 — Copa 2026 oficial (980 figurinhas, gerado)
+// ============================================================
 const STICKERS_PER_TEAM = 20;
 
-// Seção especial de abertura do álbum (troféu, mascotes e os 16 estádios-sede)
 const FWC_LABELS = [
   'Troféu da Copa do Mundo',
   'Mascote Maple (Canadá)',
@@ -96,17 +435,18 @@ const FWC_LABELS = [
   'Gillette Stadium — Boston',
 ];
 
-function defaultLabel(teamCode, num) {
+function copaDefaultLabel(teamCode, num) {
   if (teamCode === 'FWC') return FWC_LABELS[num - 1] || 'Especial';
   if (num === 1) return 'Escudo';
   if (num === 2) return 'Foto da Seleção';
   return 'Jogador';
 }
 
-// Lista de seções na ordem do álbum: FWC primeiro, depois grupos A-L
-function buildSections() {
+function buildCopaSections() {
+  const mkStickers = code => Array.from({ length: STICKERS_PER_TEAM }, (_, i) =>
+    ({ n: i + 1, label: copaDefaultLabel(code, i + 1) }));
   const sections = [
-    { code: 'FWC', name: 'Copa do Mundo 2026', flag: '🏆', group: null, count: STICKERS_PER_TEAM },
+    { code: 'FWC', name: 'Copa do Mundo 2026', flag: '🏆', group: null, stickers: mkStickers('FWC') },
   ];
   for (const [group, codes] of Object.entries(GROUPS)) {
     for (const code of codes) {
@@ -115,17 +455,36 @@ function buildSections() {
         name: TEAMS[code].name,
         flag: TEAMS[code].flag,
         group,
-        count: STICKERS_PER_TEAM,
+        stickers: mkStickers(code),
       });
     }
   }
   return sections;
 }
 
-const SECTIONS = buildSections();
-const TOTAL_STICKERS = SECTIONS.reduce((sum, s) => sum + s.count, 0); // 980
+// ============================================================
+// Registro dos álbuns
+// ============================================================
+const ALBUMS = {
+  road: {
+    id: 'road',
+    title: 'Road to Copa 2026',
+    short: '📕 Road to 2026',
+    sections: ROAD_SECTIONS,
+  },
+  copa: {
+    id: 'copa',
+    title: 'Copa 2026 — álbum oficial',
+    short: '📗 Oficial (980)',
+    sections: buildCopaSections(),
+  },
+};
 
-// Mapeia nomes de times vindos da API de jogos (em inglês) para nossos códigos
+for (const album of Object.values(ALBUMS)) {
+  album.total = album.sections.reduce((s, sec) => s + sec.stickers.length, 0);
+}
+
+// ---------- Mapeia nomes de times da API de jogos (inglês) para nossos códigos ----------
 const API_NAME_TO_CODE = {
   'mexico': 'MEX', 'south africa': 'RSA', 'south korea': 'KOR', 'korea republic': 'KOR',
   'czechia': 'CZE', 'czech republic': 'CZE', 'canada': 'CAN', 'switzerland': 'SUI',

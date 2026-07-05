@@ -5,9 +5,13 @@ App web (funciona no celular, instalável como PWA) para controlar o álbum de f
 
 ## O que ele faz
 
-- **Índice completo do álbum**: 980 figurinhas — seção especial da Copa (FWC 1–20: troféu,
-  mascotes e os 16 estádios) + as 48 seleções com numeração oficial por país (ex: BRA 1 a BRA 20),
-  organizadas pelos 12 grupos (A a L).
+- **Dois álbuns** (alterne no topo das abas):
+  - **📕 Road to Copa 2026** (padrão) — 257 figurinhas em 14 seções (12 seleções +
+    Coca-Cola + História da Copa), com jogadores nominais e a coleção do usuário
+    pré-carregada (67 coladas).
+  - **📗 Copa 2026 oficial** — 980 figurinhas: seção FWC (troféu, mascotes e os 16
+    estádios) + as 48 seleções com numeração por país (ex: BRA 1 a BRA 20),
+    organizadas pelos 12 grupos (A a L).
 - **Tenho / Faltam / Repetidas**: toque na figurinha para marcar. Modos rápidos:
   `✓ Tenho`, `+1 Repetida`, `−1 Repetida` e `✏️ Nomear` (para escrever o nome do jogador).
 - **Controle de trocas**: aba com todas as repetidas disponíveis e botão "copiar lista"
