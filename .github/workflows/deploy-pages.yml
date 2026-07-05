@@ -1,5 +1,6 @@
 name: Publicar no GitHub Pages
 
+# Publica o app na branch gh-pages, que o GitHub Pages serve automaticamente.
 on:
   push:
     branches:
@@ -8,34 +9,26 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  publish:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Baixar código
         uses: actions/checkout@v4
 
-      - name: Configurar Pages (ativa automaticamente se necessário)
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Empacotar site
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-
-      - name: Publicar
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Enviar para a branch gh-pages
+        run: |
+          rm -rf .github
+          touch .nojekyll
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan gh-pages-tmp
+          git add -A
+          git commit -m "Publicar site (automático)"
+          git push origin gh-pages-tmp:gh-pages --force
