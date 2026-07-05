@@ -438,7 +438,7 @@ const FWC_LABELS = [
 function copaDefaultLabel(teamCode, num) {
   if (teamCode === 'FWC') return FWC_LABELS[num - 1] || 'Especial';
   if (num === 1) return 'Escudo';
-  if (num === 2) return 'Foto da Seleção';
+  if (num === 13) return 'Foto da Seleção';
   return 'Jogador';
 }
 
