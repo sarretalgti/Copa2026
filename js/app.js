@@ -445,6 +445,7 @@ function fallbackCopy(text) {
 // ============================================================
 const API_URL = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=20260611-20260719&limit=250';
 let syncing = false;
+let syncFailed = false;
 
 async function syncMatches(silent = false) {
   if (syncing) return;
@@ -473,6 +474,7 @@ async function syncMatches(silent = false) {
       };
     });
     if (events.length) {
+      syncFailed = false;
       state.matches = events.sort((a, b) => new Date(a.date) - new Date(b.date));
       state.lastSync = Date.now();
       save();
@@ -482,6 +484,7 @@ async function syncMatches(silent = false) {
     }
   } catch (e) {
     console.warn('Erro ao sincronizar jogos', e);
+    syncFailed = true;
     if (!silent) toast('Sem conexão com a fonte de resultados. Mostrando dados salvos.');
   } finally {
     syncing = false;
@@ -533,6 +536,7 @@ function renderJogos(main) {
       </div>
       <div class="sync-info">${state.lastSync ? 'Última atualização: ' + new Date(state.lastSync).toLocaleString('pt-BR') : 'Toque em "Atualizar resultados" para baixar a agenda completa da Copa.'}</div>
     </div>
+    ${syncFailed ? `<div class="banner warn">⚠️ Não consegui buscar os resultados agora${state.matches.length ? ' — mostrando os últimos dados salvos' : ''}. Se você está usando a versão hospedada no claude.ai, a busca automática é bloqueada por segurança: use a versão do GitHub Pages para resultados ao vivo.</div>` : ''}
     <div class="filter-row">
       ${filters.map(([k, lbl]) => `<button class="chip-btn ${filter === k ? 'active' : ''}" data-filter="${k}">${lbl}</button>`).join('')}
     </div>`;
