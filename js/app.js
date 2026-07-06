@@ -118,14 +118,23 @@ function renderHeader() {
     <div class="stat"><b style="color:var(--amber)">${g.dups}</b><span>Repetidas</span></div>
     <div class="stat"><b>${pct.toFixed(1)}%</b><span>Álbum</span></div>`;
   $('#mainBar').style.width = pct + '%';
+  updateHeaderHeight();
 }
 
-// ---------- troca de álbum ----------
+// ---------- troca de álbum (só aparece se houver mais de um) ----------
 function albumSwitcherHtml() {
+  const ids = Object.values(ALBUMS);
+  if (ids.length < 2) return '';
   return `<div class="mode-row">
-    ${Object.values(ALBUMS).map(a =>
+    ${ids.map(a =>
       `<button class="chip-btn ${state.currentAlbum === a.id ? 'active' : ''}" data-album="${a.id}">${a.short}</button>`).join('')}
   </div>`;
+}
+
+// mede o cabeçalho para a barra fixa grudar logo abaixo dele
+function updateHeaderHeight() {
+  const bar = document.querySelector('header.topbar');
+  if (bar) document.documentElement.style.setProperty('--header-h', bar.offsetHeight + 'px');
 }
 
 document.addEventListener('click', e => {
@@ -173,16 +182,18 @@ let markMode = 'own'; // own | dup | dupminus | rename
 
 function renderAlbum(main) {
   main.innerHTML = `
-    ${albumSwitcherHtml()}
-    <div class="searchbar">
-      <input id="searchInput" type="search" placeholder="Buscar: país, número, jogador..." value="${esc(albumQuery)}">
-    </div>
-    <div class="mode-row">
-      <span class="hint">Ao tocar:</span>
-      <button class="chip-btn mode-own ${markMode === 'own' ? 'active' : ''}" data-mode="own">✓ Tenho</button>
-      <button class="chip-btn mode-dup ${markMode === 'dup' ? 'active' : ''}" data-mode="dup">+1 Repetida</button>
-      <button class="chip-btn mode-dupminus ${markMode === 'dupminus' ? 'active' : ''}" data-mode="dupminus">−1 Repetida</button>
-      <button class="chip-btn mode-rename ${markMode === 'rename' ? 'active' : ''}" data-mode="rename">✏️ Nomear</button>
+    <div class="album-sticky">
+      ${albumSwitcherHtml()}
+      <div class="searchbar">
+        <input id="searchInput" type="search" placeholder="Buscar: país, número, jogador..." value="${esc(albumQuery)}">
+      </div>
+      <div class="mode-row">
+        <span class="hint">Ao tocar:</span>
+        <button class="chip-btn mode-own ${markMode === 'own' ? 'active' : ''}" data-mode="own">✓ Tenho</button>
+        <button class="chip-btn mode-dup ${markMode === 'dup' ? 'active' : ''}" data-mode="dup">+1 Repetida</button>
+        <button class="chip-btn mode-dupminus ${markMode === 'dupminus' ? 'active' : ''}" data-mode="dupminus">−1 Repetida</button>
+        <button class="chip-btn mode-rename ${markMode === 'rename' ? 'active' : ''}" data-mode="rename">✏️ Nomear</button>
+      </div>
     </div>
     <div id="albumSections"></div>`;
 
@@ -904,6 +915,12 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 
 setTab(state.tab || 'album');
+updateHeaderHeight();
+window.addEventListener('resize', updateHeaderHeight);
+if ('ResizeObserver' in window) {
+  const bar = document.querySelector('header.topbar');
+  if (bar) new ResizeObserver(updateHeaderHeight).observe(bar);
+}
 
 // primeira carga da agenda em segundo plano (se nunca sincronizou ou faz +1h)
 if (!state.lastSync || Date.now() - state.lastSync > 3600e3) {

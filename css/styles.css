@@ -89,6 +89,20 @@ nav.tabs button {
 nav.tabs button .ico { font-size: 1.15rem; }
 nav.tabs button.active { color: var(--green); }
 
+/* ---- Barra fixa (busca + modos) que gruda abaixo do cabeçalho ---- */
+.album-sticky {
+  position: sticky;
+  top: var(--header-h, 128px);
+  z-index: 40;
+  background: var(--bg);
+  margin: -12px -12px 8px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 6px 10px -6px rgba(0,0,0,.6);
+}
+.album-sticky .mode-row:last-child { margin-bottom: 0; }
+.album-sticky .searchbar { margin-bottom: 8px; }
+
 /* ---- Barra de busca e modos ---- */
 .searchbar {
   display: flex;
