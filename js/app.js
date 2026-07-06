@@ -514,6 +514,7 @@ function fallbackCopy(text) {
 // ABA JOGOS — agenda, resultados automáticos e alertas
 // ============================================================
 const API_URL = 'https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=20260611-20260719&limit=250';
+const BR_TZ = 'America/Sao_Paulo'; // horários sempre no fuso de Brasília
 let syncing = false;
 let syncFailed = false;
 
@@ -604,7 +605,7 @@ function renderJogos(main) {
         <button class="btn small" id="syncBtn" ${syncing ? 'disabled' : ''}>🔄 Atualizar resultados</button>
         <button class="btn small secondary" id="notifBtn">🔔 Ativar notificações</button>
       </div>
-      <div class="sync-info">${state.lastSync ? 'Última atualização: ' + new Date(state.lastSync).toLocaleString('pt-BR') : 'Toque em "Atualizar resultados" para baixar a agenda completa da Copa.'}</div>
+      <div class="sync-info">🕐 Horários no fuso de Brasília${state.lastSync ? ' · atualizado ' + new Date(state.lastSync).toLocaleString('pt-BR', { timeZone: BR_TZ }) : ''}</div>
     </div>
     ${syncFailed ? `<div class="banner warn">⚠️ Não consegui buscar os resultados agora${state.matches.length ? ' — mostrando os últimos dados salvos' : ''}. Se você está usando a versão hospedada no claude.ai, a busca automática é bloqueada por segurança: use a versão do GitHub Pages para resultados ao vivo.</div>` : ''}
     <div class="filter-row">
@@ -619,7 +620,7 @@ function renderJogos(main) {
     let lastDay = '';
     for (const m of matches) {
       const d = new Date(m.date);
-      const dayKey = d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+      const dayKey = d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', timeZone: BR_TZ });
       if (dayKey !== lastDay) {
         html += `<div class="match-day-head">${dayKey}</div>`;
         lastDay = dayKey;
@@ -640,14 +641,14 @@ function renderJogos(main) {
 }
 
 function renderMatch(m, d) {
-  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: BR_TZ });
   const live = m.state === 'in';
   const done = m.state === 'post';
   const statusHtml = done
     ? `<div class="st-time">Fim</div><div class="st-detail">${esc(m.detail)}</div>`
     : live
       ? `<div class="st-time">AO VIVO</div><div class="st-detail">${esc(m.detail)}</div>`
-      : `<div class="st-time">${time}</div><div class="st-detail">horário local</div>`;
+      : `<div class="st-time">${time}</div><div class="st-detail">Brasília</div>`;
   const alertOn = !!state.alerts[m.id];
   return `
     <div class="match">
