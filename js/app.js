@@ -110,7 +110,8 @@ function globalStats() {
 function renderHeader() {
   const g = globalStats();
   const pct = g.total ? (g.owned / g.total) * 100 : 0;
-  $('#albumTitle').textContent = curAlbum().title;
+  const at = $('#albumTitle');
+  if (at) at.textContent = curAlbum().title;
   $('#statStrip').innerHTML = `
     <div class="stat"><b>${g.total}</b><span>Total</span></div>
     <div class="stat"><b style="color:var(--green)">${g.owned}</b><span>Tenho</span></div>
