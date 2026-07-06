@@ -2,7 +2,7 @@
 // Cromos Copa 2026 — lógica do app (multi-álbum)
 // ============================================================
 
-const STORE_KEY = 'copa2026_album_v1';
+const STORE_KEY = 'copa2026_album_v2';
 
 const state = loadState();
 
@@ -23,7 +23,7 @@ function seededAlbumState(albumId) {
 
 function loadState() {
   const base = {
-    currentAlbum: 'road',
+    currentAlbum: 'copa',
     albums: {},
     alerts: {},        // eventId: true
     notified: {},      // eventId: true (alerta já disparado)
@@ -36,19 +36,11 @@ function loadState() {
   let st = base;
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      st = Object.assign(base, parsed);
-      // migração da versão antiga (dados soltos = álbum oficial)
-      if (parsed.owned && !parsed.albums) {
-        st.albums = { copa: { owned: parsed.owned, dups: parsed.dups || {}, labels: parsed.labels || {} } };
-        delete st.owned; delete st.dups; delete st.labels;
-      }
-    }
+    if (raw) st = Object.assign(base, JSON.parse(raw));
   } catch (e) { console.warn('Falha ao carregar dados salvos', e); }
-  if (!st.albums.road) st.albums.road = seededAlbumState('road');
-  if (!st.albums.copa) st.albums.copa = emptyAlbumState();
-  if (!ALBUMS[st.currentAlbum]) st.currentAlbum = 'road';
+  // Primeira carga: parte das coladas transcritas do álbum do usuário (o:1)
+  if (!st.albums.copa) st.albums.copa = seededAlbumState('copa');
+  if (!ALBUMS[st.currentAlbum]) st.currentAlbum = 'copa';
   return st;
 }
 
