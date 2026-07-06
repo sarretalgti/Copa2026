@@ -890,7 +890,16 @@ function exportBackup() {
 // Inicialização
 // ============================================================
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    reg.update();
+    // quando uma versão nova assumir o controle, recarrega para mostrar as novidades
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      location.reload();
+    });
+  }).catch(() => {});
 }
 
 setTab(state.tab || 'album');
