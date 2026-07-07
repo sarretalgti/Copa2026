@@ -32,6 +32,8 @@ function loadState() {
     openSections: {},
     tab: 'album',
     matchFilter: 'proximos',
+    syncId: null,      // código do álbum compartilhado (sincronização entre celulares)
+    syncRev: 0,        // carimbo de tempo da última versão conhecida no servidor
   };
   let st = base;
   try {
@@ -44,13 +46,136 @@ function loadState() {
   return st;
 }
 
+function persistLocal() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+  catch (e) { console.warn('Falha ao salvar', e); }
+}
+
 let saveTimer = null;
 function save() {
+  if (state.syncId) syncDirty = true; // há edição local pendente para enviar
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
-    catch (e) { console.warn('Falha ao salvar', e); }
+    persistLocal();
+    if (state.syncId) schedulePush();
   }, 150);
+}
+
+// ============================================================
+// Sincronização entre celulares (álbum compartilhado, sem cadastro)
+// Guarda o álbum num "cofre" JSON online; os dois aparelhos leem/escrevem.
+// ============================================================
+const SYNC_BASE = 'https://jsonblob.com/api/jsonBlob';
+let syncDirty = false;   // tem mudança local ainda não enviada
+let syncBusy = false;    // requisição em andamento
+let pushTimer = null;
+
+function syncPayload() {
+  return { app: 'cromos-copa-2026', updatedAt: Date.now(), albums: state.albums };
+}
+
+function schedulePush() {
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(syncPush, 1200);
+}
+
+function extractId(text) {
+  const m = String(text).trim().match(/[A-Za-z0-9-]{8,}$/) || String(text).match(/jsonBlob\/([A-Za-z0-9-]+)/);
+  if (!m) return '';
+  return (m[1] || m[0]).replace(/[^A-Za-z0-9-]/g, '');
+}
+
+async function syncCreate() {
+  if (syncBusy) return;
+  syncBusy = true;
+  toast('Criando álbum compartilhado...');
+  try {
+    const body = syncPayload();
+    const res = await fetch(SYNC_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const id = extractId(res.headers.get('Location') || '');
+    if (!id) throw new Error('sem id');
+    state.syncId = id; state.syncRev = body.updatedAt; syncDirty = false;
+    persistLocal();
+    if (state.tab === 'dados') render();
+    toast('Álbum compartilhado criado! Envie o código para o outro celular.');
+  } catch (e) {
+    console.warn('syncCreate', e);
+    toast('Não consegui criar a sincronização agora. Verifique a internet e tente de novo.');
+  } finally { syncBusy = false; }
+}
+
+async function syncJoin(code) {
+  const id = extractId(code);
+  if (!id) { toast('Código inválido.'); return; }
+  if (syncBusy) return;
+  syncBusy = true;
+  toast('Entrando no álbum compartilhado...');
+  try {
+    const res = await fetch(SYNC_BASE + '/' + id, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data || !data.albums) throw new Error('formato');
+    state.albums = data.albums;
+    state.syncId = id;
+    state.syncRev = data.updatedAt || Date.now();
+    syncDirty = false;
+    persistLocal();
+    render();
+    toast('Conectado! Agora os dois celulares sincronizam. ✓');
+  } catch (e) {
+    console.warn('syncJoin', e);
+    toast('Não encontrei esse álbum. Confira o código e a internet.');
+  } finally { syncBusy = false; }
+}
+
+async function syncPush() {
+  if (!state.syncId || syncBusy) return;
+  syncBusy = true;
+  try {
+    const body = syncPayload();
+    const res = await fetch(SYNC_BASE + '/' + state.syncId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) { state.syncRev = body.updatedAt; syncDirty = false; persistLocal(); }
+  } catch (e) { /* offline: continua marcado como dirty para tentar depois */ }
+  finally { syncBusy = false; }
+}
+
+async function syncPull() {
+  if (!state.syncId || syncBusy || syncDirty) return;
+  syncBusy = true;
+  try {
+    const res = await fetch(SYNC_BASE + '/' + state.syncId, { headers: { 'Accept': 'application/json' } });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.albums && (data.updatedAt || 0) > state.syncRev) {
+        state.albums = data.albums;
+        state.syncRev = data.updatedAt;
+        persistLocal();
+        render();
+        toast('Atualizado com as figurinhas do outro celular ✓');
+      }
+    }
+  } catch (e) { /* offline */ }
+  finally { syncBusy = false; }
+}
+
+function syncStop() {
+  state.syncId = null; state.syncRev = 0; syncDirty = false;
+  persistLocal();
+  if (state.tab === 'dados') render();
+  toast('Sincronização desligada. Este celular voltou a salvar só localmente.');
+}
+
+function syncLink() {
+  return `${location.origin}${location.pathname}#sync=${state.syncId}`;
 }
 
 // ---------- acesso ao álbum atual ----------
@@ -738,9 +863,37 @@ setInterval(() => {
 // ============================================================
 // ABA DADOS — importar, exportar, zerar
 // ============================================================
+function syncCardHtml() {
+  if (state.syncId) {
+    return `
+    <div class="card">
+      <h2>📱 Sincronização entre celulares <span style="color:var(--green);font-size:.7rem">● ligada</span></h2>
+      <p class="help">Este álbum está compartilhado. O que um marca aparece no outro em alguns segundos (com internet). Para conectar mais um celular, use o código ou o link abaixo.</p>
+      <h3>Código do álbum</h3>
+      <textarea class="paste" id="syncCode" readonly style="min-height:44px">${esc(state.syncId)}</textarea>
+      <div class="btn-row">
+        <button class="btn small" id="syncCopyCode">📋 Copiar código</button>
+        <button class="btn small secondary" id="syncCopyLink">🔗 Copiar link de convite</button>
+        <button class="btn small" id="syncNow">🔄 Sincronizar agora</button>
+      </div>
+      <div class="btn-row"><button class="btn small danger" id="syncStop">Desligar sincronização</button></div>
+    </div>`;
+  }
+  return `
+    <div class="card">
+      <h2>📱 Sincronizar entre celulares</h2>
+      <p class="help">Deixe o álbum compartilhado com outra pessoa (ex: sua esposa). O que um marcar aparece no outro automaticamente. É grátis e não precisa de cadastro.<br><br>
+      <b>Neste celular</b> (que já tem suas marcações) toque em <b>Criar</b> e envie o código/link para o outro. <b>No outro celular</b>, cole o código e toque em Entrar.</p>
+      <div class="btn-row"><button class="btn" id="syncCreate">➕ Criar álbum compartilhado</button></div>
+      <h3>Entrar com um código</h3>
+      <textarea class="paste" id="syncJoinCode" placeholder="Cole aqui o código recebido" style="min-height:44px"></textarea>
+      <div class="btn-row"><button class="btn secondary" id="syncJoin">Entrar no álbum compartilhado</button></div>
+    </div>`;
+}
+
 function renderDados(main) {
   const g = globalStats();
-  main.innerHTML = albumSwitcherHtml() + `
+  main.innerHTML = albumSwitcherHtml() + syncCardHtml() + `
     <div class="card">
       <h2>📥 Importar figurinhas <small style="color:var(--text-dim);font-weight:400">· ${esc(curAlbum().title)}</small></h2>
       <p class="help">
@@ -773,6 +926,15 @@ function renderDados(main) {
       <p class="help">Apaga todas as marcações do álbum <b>${esc(curAlbum().title)}</b> (tenho, repetidas e nomes). Não afeta o outro álbum nem a agenda de jogos.</p>
       <div class="btn-row"><button class="btn danger" id="resetBtn">Zerar este álbum</button></div>
     </div>`;
+
+  // --- Sincronização ---
+  const on = (id, fn) => { const el = $('#' + id); if (el) el.onclick = fn; };
+  on('syncCreate', syncCreate);
+  on('syncJoin', () => syncJoin($('#syncJoinCode').value));
+  on('syncCopyCode', () => copyText(state.syncId));
+  on('syncCopyLink', () => copyText(syncLink()));
+  on('syncNow', () => { syncPush().then(syncPull); toast('Sincronizando...'); });
+  on('syncStop', () => { if (confirm('Desligar a sincronização neste celular? As marcações atuais continuam salvas aqui.')) syncStop(); });
 
   $('#importBtn').onclick = () => {
     const r1 = importList($('#pasteOwned').value, 'owned');
@@ -928,3 +1090,21 @@ if (!state.lastSync || Date.now() - state.lastSync > 3600e3) {
   syncMatches(true);
 }
 checkAlerts();
+
+// ---- Sincronização entre celulares: auto-entrar por link e manter em dia ----
+(function initSync() {
+  // link de convite: .../#sync=<código> → entra automaticamente
+  const m = location.hash.match(/sync=([A-Za-z0-9-]+)/);
+  if (m && m[1] && m[1] !== state.syncId) {
+    syncJoin(m[1]);
+    history.replaceState(null, '', location.pathname); // limpa o hash da barra
+  } else if (state.syncId) {
+    syncPull(); // já estava conectado: busca novidades ao abrir
+  }
+  // busca novidades a cada 12s (com o app visível) e ao voltar o foco
+  setInterval(() => { if (document.visibilityState === 'visible') syncPull(); }, 12000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncPull(); });
+  window.addEventListener('focus', syncPull);
+  // ao sair/minimizar, tenta enviar o que estiver pendente
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && syncDirty) syncPush(); });
+})();
