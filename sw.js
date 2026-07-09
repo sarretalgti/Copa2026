@@ -1,7 +1,7 @@
 // Service worker — SEMPRE rede primeiro para os arquivos do app,
 // caindo no cache só quando estiver offline. Assim novas versões
 // aparecem sem precisar limpar nada.
-const CACHE = 'cromos-copa2026-v8';
+const CACHE = 'cromos-copa2026-v9';
 const ASSETS = ['.', 'index.html', 'css/styles.css', 'js/data.js', 'js/app.js', 'manifest.json'];
 
 self.addEventListener('install', e => {

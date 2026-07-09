@@ -65,7 +65,8 @@ function save() {
 // Sincronização entre celulares (álbum compartilhado, sem cadastro)
 // Guarda o álbum num "cofre" JSON online; os dois aparelhos leem/escrevem.
 // ============================================================
-const SYNC_BASE = 'https://jsonblob.com/api/jsonBlob';
+const SYNC_BASE = 'https://kvdb.io';   // armazenamento chave-valor simples (sem cadastro)
+const SYNC_KEY = 'album';               // nome da chave dentro do "cofre"
 let syncDirty = false;   // tem mudança local ainda não enviada
 let syncBusy = false;    // requisição em andamento
 let pushTimer = null;
@@ -105,28 +106,24 @@ async function syncCreate() {
   syncBusy = true;
   toast('Criando álbum compartilhado...');
   try {
+    // 1) cria um "cofre" anônimo (requisição simples, sem cabeçalhos especiais)
+    const rb = await fetch(SYNC_BASE + '/', { method: 'POST', body: '' });
+    if (!rb.ok) throw new Error('o servidor respondeu ' + rb.status);
+    const bucket = (await rb.text()).trim();
+    if (!/^[A-Za-z0-9_-]{6,}$/.test(bucket)) throw new Error('não recebi um código válido');
+    // 2) grava o álbum dentro do cofre
     const body = syncPayload();
-    const res = await fetch(SYNC_BASE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error('O servidor respondeu ' + res.status);
-    let id = extractId(res.headers.get('Location') || '');
-    if (!id) {
-      // fallback: alguns navegadores não expõem o cabeçalho Location — pega pelo corpo
-      try { const j = await res.clone().json(); id = extractId(j.id || j._id || ''); } catch (e2) {}
-    }
-    if (!id) throw new Error('não recebi o código do álbum');
-    state.syncId = id; state.syncRev = body.updatedAt; syncDirty = false;
+    const rw = await fetch(`${SYNC_BASE}/${bucket}/${SYNC_KEY}`, { method: 'POST', body: JSON.stringify(body) });
+    if (!rw.ok) throw new Error('não consegui gravar (' + rw.status + ')');
+    state.syncId = bucket; state.syncRev = body.updatedAt; syncDirty = false;
     persistLocal();
     if (state.tab === 'dados') render();
-    toast('Álbum compartilhado criado! Envie o link para o outro celular.');
+    toast('Álbum compartilhado criado! Envie o link para o outro celular. ✓');
   } catch (e) {
     console.warn('syncCreate', e);
     const net = (e && e.message && /failed|network|load/i.test(e.message));
     alert('Não consegui criar a sincronização.\n\n' + (net
-      ? 'Parece falta de conexão/bloqueio de rede. Confira a internet e tente pelo endereço github.io/Copa2026/.'
+      ? 'Parece bloqueio de rede do navegador. Confirme que abriu pelo endereço github.io/Copa2026/ e tente de novo.'
       : 'Motivo: ' + (e && e.message ? e.message : 'desconhecido') + '. Tente de novo em instantes.'));
   } finally { syncBusy = false; }
 }
@@ -140,9 +137,9 @@ async function syncJoin(code) {
   syncBusy = true;
   toast('Entrando no álbum compartilhado...');
   try {
-    const res = await fetch(SYNC_BASE + '/' + id, { headers: { 'Accept': 'application/json' } });
+    const res = await fetch(`${SYNC_BASE}/${id}/${SYNC_KEY}`);
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    const data = JSON.parse(await res.text());
     if (!data || !data.albums) throw new Error('formato');
     state.albums = data.albums;
     state.syncId = id;
@@ -153,7 +150,7 @@ async function syncJoin(code) {
     toast('Conectado! Agora os dois celulares sincronizam. ✓');
   } catch (e) {
     console.warn('syncJoin', e);
-    toast('Não encontrei esse álbum. Confira o código e a internet.');
+    alert('Não encontrei esse álbum compartilhado.\n\nConfira se o código está completo e se você abriu pelo endereço github.io/Copa2026/.');
   } finally { syncBusy = false; }
 }
 
@@ -162,11 +159,7 @@ async function syncPush() {
   syncBusy = true;
   try {
     const body = syncPayload();
-    const res = await fetch(SYNC_BASE + '/' + state.syncId, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    const res = await fetch(`${SYNC_BASE}/${state.syncId}/${SYNC_KEY}`, { method: 'POST', body: JSON.stringify(body) });
     if (res.ok) { state.syncRev = body.updatedAt; syncDirty = false; persistLocal(); }
   } catch (e) { /* offline: continua marcado como dirty para tentar depois */ }
   finally { syncBusy = false; }
@@ -176,9 +169,9 @@ async function syncPull() {
   if (!state.syncId || syncBusy || syncDirty) return;
   syncBusy = true;
   try {
-    const res = await fetch(SYNC_BASE + '/' + state.syncId, { headers: { 'Accept': 'application/json' } });
+    const res = await fetch(`${SYNC_BASE}/${state.syncId}/${SYNC_KEY}`);
     if (res.ok) {
-      const data = await res.json();
+      const data = JSON.parse(await res.text());
       if (data && data.albums && (data.updatedAt || 0) > state.syncRev) {
         state.albums = data.albums;
         state.syncRev = data.updatedAt;
