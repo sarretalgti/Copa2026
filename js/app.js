@@ -74,6 +74,19 @@ function syncPayload() {
   return { app: 'cromos-copa-2026', updatedAt: Date.now(), albums: state.albums };
 }
 
+// A sincronização precisa de conexão externa livre — só funciona no site
+// hospedado (GitHub Pages), não na prévia do claude.ai (que bloqueia por segurança).
+function syncUnavailableReason() {
+  const h = location.hostname || '';
+  if (h.includes('claude.ai') || h.includes('anthropic') || h.includes('usercontent')) {
+    return 'A sincronização não funciona nesta prévia. Abra o app pelo endereço do GitHub Pages (…github.io/Copa2026/) e adicione ESSE à tela inicial.';
+  }
+  if (location.protocol === 'file:') {
+    return 'Abra o app pelo endereço na internet (github.io) para poder sincronizar.';
+  }
+  return null;
+}
+
 function schedulePush() {
   clearTimeout(pushTimer);
   pushTimer = setTimeout(syncPush, 1200);
@@ -86,6 +99,8 @@ function extractId(text) {
 }
 
 async function syncCreate() {
+  const reason = syncUnavailableReason();
+  if (reason) { alert(reason); return; }
   if (syncBusy) return;
   syncBusy = true;
   toast('Criando álbum compartilhado...');
@@ -96,20 +111,29 @@ async function syncCreate() {
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const id = extractId(res.headers.get('Location') || '');
-    if (!id) throw new Error('sem id');
+    if (!res.ok) throw new Error('O servidor respondeu ' + res.status);
+    let id = extractId(res.headers.get('Location') || '');
+    if (!id) {
+      // fallback: alguns navegadores não expõem o cabeçalho Location — pega pelo corpo
+      try { const j = await res.clone().json(); id = extractId(j.id || j._id || ''); } catch (e2) {}
+    }
+    if (!id) throw new Error('não recebi o código do álbum');
     state.syncId = id; state.syncRev = body.updatedAt; syncDirty = false;
     persistLocal();
     if (state.tab === 'dados') render();
-    toast('Álbum compartilhado criado! Envie o código para o outro celular.');
+    toast('Álbum compartilhado criado! Envie o link para o outro celular.');
   } catch (e) {
     console.warn('syncCreate', e);
-    toast('Não consegui criar a sincronização agora. Verifique a internet e tente de novo.');
+    const net = (e && e.message && /failed|network|load/i.test(e.message));
+    alert('Não consegui criar a sincronização.\n\n' + (net
+      ? 'Parece falta de conexão/bloqueio de rede. Confira a internet e tente pelo endereço github.io/Copa2026/.'
+      : 'Motivo: ' + (e && e.message ? e.message : 'desconhecido') + '. Tente de novo em instantes.'));
   } finally { syncBusy = false; }
 }
 
 async function syncJoin(code) {
+  const reason = syncUnavailableReason();
+  if (reason) { alert(reason); return; }
   const id = extractId(code);
   if (!id) { toast('Código inválido.'); return; }
   if (syncBusy) return;
@@ -879,9 +903,12 @@ function syncCardHtml() {
       <div class="btn-row"><button class="btn small danger" id="syncStop">Desligar sincronização</button></div>
     </div>`;
   }
+  const reason = syncUnavailableReason();
+  const warn = reason ? `<div class="banner warn">⚠️ ${esc(reason)}</div>` : '';
   return `
     <div class="card">
       <h2>📱 Sincronizar entre celulares</h2>
+      ${warn}
       <p class="help">Deixe o álbum compartilhado com outra pessoa (ex: sua esposa). O que um marcar aparece no outro automaticamente. É grátis e não precisa de cadastro.<br><br>
       <b>Neste celular</b> (que já tem suas marcações) toque em <b>Criar</b> e envie o código/link para o outro. <b>No outro celular</b>, cole o código e toque em Entrar.</p>
       <div class="btn-row"><button class="btn" id="syncCreate">➕ Criar álbum compartilhado</button></div>
