@@ -106,8 +106,13 @@ async function syncCreate() {
   syncBusy = true;
   toast('Criando álbum compartilhado...');
   try {
-    // 1) cria um "cofre" anônimo (requisição simples, sem cabeçalhos especiais)
-    const rb = await fetch(SYNC_BASE + '/', { method: 'POST', body: '' });
+    // 1) cria um "cofre" anônimo — formato que o kvdb espera (igual ao curl -d),
+    //    mantendo requisição simples (form-urlencoded não dispara preflight)
+    const rb = await fetch(SYNC_BASE + '/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'expire_after=0',
+    });
     if (!rb.ok) throw new Error('o servidor respondeu ' + rb.status);
     const bucket = (await rb.text()).trim();
     if (!/^[A-Za-z0-9_-]{6,}$/.test(bucket)) throw new Error('não recebi um código válido');
