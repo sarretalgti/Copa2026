@@ -53,151 +53,90 @@ function persistLocal() {
 
 let saveTimer = null;
 function save() {
-  if (state.syncId) syncDirty = true; // há edição local pendente para enviar
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    persistLocal();
-    if (state.syncId) schedulePush();
-  }, 150);
+  saveTimer = setTimeout(persistLocal, 150);
 }
 
 // ============================================================
-// Sincronização entre celulares (álbum compartilhado, sem cadastro)
-// Guarda o álbum num "cofre" JSON online; os dois aparelhos leem/escrevem.
+// Compartilhar o álbum com outro celular POR CÓDIGO (sem servidor)
+// Gera um código compacto de todo o álbum; o outro cola e as marcações se somam.
 // ============================================================
-const SYNC_BASE = 'https://kvdb.io';   // armazenamento chave-valor simples (sem cadastro)
-const SYNC_KEY = 'album';               // nome da chave dentro do "cofre"
-let syncDirty = false;   // tem mudança local ainda não enviada
-let syncBusy = false;    // requisição em andamento
-let pushTimer = null;
+function copaOrderedIds() {
+  const list = [];
+  for (const sec of ALBUMS.copa.sections)
+    for (let i = 1; i <= sec.stickers.length; i++) list.push(sec.code + '-' + i);
+  return list;
+}
+function b64urlFromBytes(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function bytesFromB64url(str) {
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  const bin = atob(str);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+function b64urlFromStr(s) { return b64urlFromBytes(new TextEncoder().encode(s)); }
+function strFromB64url(s) { return new TextDecoder().decode(bytesFromB64url(s)); }
 
-function syncPayload() {
-  return { app: 'cromos-copa-2026', updatedAt: Date.now(), albums: state.albums };
+function generateShareCode() {
+  const ids = copaOrderedIds();
+  const data = state.albums.copa;
+  const bytes = new Uint8Array(Math.ceil(ids.length / 8));
+  const dups = {}, labels = {};
+  ids.forEach((id, i) => {
+    if (data.owned[id]) bytes[i >> 3] |= (1 << (i & 7));
+    if (data.dups[id]) dups[i] = data.dups[id];
+    if (data.labels[id]) labels[i] = data.labels[id];
+  });
+  const b = b64urlFromBytes(bytes);
+  const extras = {};
+  if (Object.keys(dups).length) extras.d = dups;
+  if (Object.keys(labels).length) extras.l = labels;
+  return Object.keys(extras).length
+    ? ('2' + b + '.' + b64urlFromStr(JSON.stringify(extras)))
+    : ('1' + b);
 }
 
-// A sincronização precisa de conexão externa livre — só funciona no site
-// hospedado (GitHub Pages), não na prévia do claude.ai (que bloqueia por segurança).
-function syncUnavailableReason() {
-  const h = location.hostname || '';
-  if (h.includes('claude.ai') || h.includes('anthropic') || h.includes('usercontent')) {
-    return 'A sincronização não funciona nesta prévia. Abra o app pelo endereço do GitHub Pages (…github.io/Copa2026/) e adicione ESSE à tela inicial.';
-  }
-  if (location.protocol === 'file:') {
-    return 'Abra o app pelo endereço na internet (github.io) para poder sincronizar.';
-  }
-  return null;
-}
-
-function schedulePush() {
-  clearTimeout(pushTimer);
-  pushTimer = setTimeout(syncPush, 1200);
-}
-
-function extractId(text) {
-  const m = String(text).trim().match(/[A-Za-z0-9-]{8,}$/) || String(text).match(/jsonBlob\/([A-Za-z0-9-]+)/);
-  if (!m) return '';
-  return (m[1] || m[0]).replace(/[^A-Za-z0-9-]/g, '');
-}
-
-async function syncCreate() {
-  const reason = syncUnavailableReason();
-  if (reason) { alert(reason); return; }
-  if (syncBusy) return;
-  syncBusy = true;
-  toast('Criando álbum compartilhado...');
+// Aplica um código recebido: UNIÃO (nunca remove o que este celular já tem)
+function applyShareCode(raw) {
+  let code = String(raw || '').trim();
+  const m = code.match(/code=([^\s&#]+)/);
+  if (m) code = m[1];
+  if (!/^[12]/.test(code)) { toast('Código inválido. Copie o código inteiro.'); return false; }
   try {
-    // 1) cria um "cofre" anônimo — formato que o kvdb espera (igual ao curl -d),
-    //    mantendo requisição simples (form-urlencoded não dispara preflight)
-    const rb = await fetch(SYNC_BASE + '/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'expire_after=0',
-    });
-    if (!rb.ok) throw new Error('o servidor respondeu ' + rb.status);
-    const bucket = (await rb.text()).trim();
-    if (!/^[A-Za-z0-9_-]{6,}$/.test(bucket)) throw new Error('não recebi um código válido');
-    // 2) grava o álbum dentro do cofre
-    const body = syncPayload();
-    const rw = await fetch(`${SYNC_BASE}/${bucket}/${SYNC_KEY}`, { method: 'POST', body: JSON.stringify(body) });
-    if (!rw.ok) throw new Error('não consegui gravar (' + rw.status + ')');
-    state.syncId = bucket; state.syncRev = body.updatedAt; syncDirty = false;
-    persistLocal();
-    if (state.tab === 'dados') render();
-    toast('Álbum compartilhado criado! Envie o link para o outro celular. ✓');
-  } catch (e) {
-    console.warn('syncCreate', e);
-    const net = (e && e.message && /failed|network|load/i.test(e.message));
-    alert('Não consegui criar a sincronização.\n\n' + (net
-      ? 'Parece bloqueio de rede do navegador. Confirme que abriu pelo endereço github.io/Copa2026/ e tente de novo.'
-      : 'Motivo: ' + (e && e.message ? e.message : 'desconhecido') + '. Tente de novo em instantes.'));
-  } finally { syncBusy = false; }
-}
-
-async function syncJoin(code) {
-  const reason = syncUnavailableReason();
-  if (reason) { alert(reason); return; }
-  const id = extractId(code);
-  if (!id) { toast('Código inválido.'); return; }
-  if (syncBusy) return;
-  syncBusy = true;
-  toast('Entrando no álbum compartilhado...');
-  try {
-    const res = await fetch(`${SYNC_BASE}/${id}/${SYNC_KEY}`);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = JSON.parse(await res.text());
-    if (!data || !data.albums) throw new Error('formato');
-    state.albums = data.albums;
-    state.syncId = id;
-    state.syncRev = data.updatedAt || Date.now();
-    syncDirty = false;
-    persistLocal();
-    render();
-    toast('Conectado! Agora os dois celulares sincronizam. ✓');
-  } catch (e) {
-    console.warn('syncJoin', e);
-    alert('Não encontrei esse álbum compartilhado.\n\nConfira se o código está completo e se você abriu pelo endereço github.io/Copa2026/.');
-  } finally { syncBusy = false; }
-}
-
-async function syncPush() {
-  if (!state.syncId || syncBusy) return;
-  syncBusy = true;
-  try {
-    const body = syncPayload();
-    const res = await fetch(`${SYNC_BASE}/${state.syncId}/${SYNC_KEY}`, { method: 'POST', body: JSON.stringify(body) });
-    if (res.ok) { state.syncRev = body.updatedAt; syncDirty = false; persistLocal(); }
-  } catch (e) { /* offline: continua marcado como dirty para tentar depois */ }
-  finally { syncBusy = false; }
-}
-
-async function syncPull() {
-  if (!state.syncId || syncBusy || syncDirty) return;
-  syncBusy = true;
-  try {
-    const res = await fetch(`${SYNC_BASE}/${state.syncId}/${SYNC_KEY}`);
-    if (res.ok) {
-      const data = JSON.parse(await res.text());
-      if (data && data.albums && (data.updatedAt || 0) > state.syncRev) {
-        state.albums = data.albums;
-        state.syncRev = data.updatedAt;
-        persistLocal();
-        render();
-        toast('Atualizado com as figurinhas do outro celular ✓');
-      }
+    const ver = code[0];
+    let bpart = code.slice(1), extras = {};
+    if (ver === '2') {
+      const dot = bpart.indexOf('.');
+      extras = JSON.parse(strFromB64url(bpart.slice(dot + 1)));
+      bpart = bpart.slice(0, dot);
     }
-  } catch (e) { /* offline */ }
-  finally { syncBusy = false; }
+    const bytes = bytesFromB64url(bpart);
+    const ids = copaOrderedIds();
+    const data = state.albums.copa;
+    let added = 0;
+    ids.forEach((id, i) => {
+      if (bytes[i >> 3] & (1 << (i & 7))) { if (!data.owned[id]) added++; data.owned[id] = true; }
+    });
+    if (extras.d) for (const k in extras.d) { const id = ids[+k]; if (id) { data.dups[id] = Math.max(data.dups[id] || 0, extras.d[k]); data.owned[id] = true; } }
+    if (extras.l) for (const k in extras.l) { const id = ids[+k]; if (id) data.labels[id] = extras.l[k]; }
+    save(); render();
+    toast(added ? ('Combinado! ' + added + ' figurinha(s) nova(s) do outro celular. \u2713') : 'Já estava tudo igual — nada novo para somar. \u2713');
+    return true;
+  } catch (e) {
+    console.warn('applyShareCode', e);
+    toast('Não consegui ler esse código. Confira se copiou inteiro.');
+    return false;
+  }
 }
 
-function syncStop() {
-  state.syncId = null; state.syncRev = 0; syncDirty = false;
-  persistLocal();
-  if (state.tab === 'dados') render();
-  toast('Sincronização desligada. Este celular voltou a salvar só localmente.');
-}
-
-function syncLink() {
-  return `${location.origin}${location.pathname}#sync=${state.syncId}`;
+function shareCodeLink() {
+  return location.origin + location.pathname + '#code=' + generateShareCode();
 }
 
 // ---------- acesso ao álbum atual ----------
@@ -886,33 +825,19 @@ setInterval(() => {
 // ABA DADOS — importar, exportar, zerar
 // ============================================================
 function syncCardHtml() {
-  if (state.syncId) {
-    return `
-    <div class="card">
-      <h2>📱 Sincronização entre celulares <span style="color:var(--green);font-size:.7rem">● ligada</span></h2>
-      <p class="help">Este álbum está compartilhado. O que um marca aparece no outro em alguns segundos (com internet). Para conectar mais um celular, use o código ou o link abaixo.</p>
-      <h3>Código do álbum</h3>
-      <textarea class="paste" id="syncCode" readonly style="min-height:44px">${esc(state.syncId)}</textarea>
-      <div class="btn-row">
-        <button class="btn small" id="syncCopyCode">📋 Copiar código</button>
-        <button class="btn small secondary" id="syncCopyLink">🔗 Copiar link de convite</button>
-        <button class="btn small" id="syncNow">🔄 Sincronizar agora</button>
-      </div>
-      <div class="btn-row"><button class="btn small danger" id="syncStop">Desligar sincronização</button></div>
-    </div>`;
-  }
-  const reason = syncUnavailableReason();
-  const warn = reason ? `<div class="banner warn">⚠️ ${esc(reason)}</div>` : '';
   return `
     <div class="card">
-      <h2>📱 Sincronizar entre celulares</h2>
-      ${warn}
-      <p class="help">Deixe o álbum compartilhado com outra pessoa (ex: sua esposa). O que um marcar aparece no outro automaticamente. É grátis e não precisa de cadastro.<br><br>
-      <b>Neste celular</b> (que já tem suas marcações) toque em <b>Criar</b> e envie o código/link para o outro. <b>No outro celular</b>, cole o código e toque em Entrar.</p>
-      <div class="btn-row"><button class="btn" id="syncCreate">➕ Criar álbum compartilhado</button></div>
-      <h3>Entrar com um código</h3>
-      <textarea class="paste" id="syncJoinCode" placeholder="Cole aqui o código recebido" style="min-height:44px"></textarea>
-      <div class="btn-row"><button class="btn secondary" id="syncJoin">Entrar no álbum compartilhado</button></div>
+      <h2>📲 Compartilhar com outro celular</h2>
+      <p class="help">Junte o álbum com outra pessoa (ex: sua esposa) por um <b>código</b> — sem cadastro e sem depender de servidor, funciona sempre. Um gera o código, manda pelo WhatsApp, o outro cola. <b>As marcações se somam</b> (ninguém perde as suas). Repita quando quiser passar novidades.</p>
+      <h3>1) Enviar o meu</h3>
+      <div class="btn-row">
+        <button class="btn" id="genCode">📤 Gerar código</button>
+        <button class="btn secondary" id="genLink">🔗 Gerar link (WhatsApp)</button>
+      </div>
+      <textarea class="paste" id="myCode" readonly placeholder="Toque em Gerar código — ele aparece aqui e já é copiado" style="min-height:60px"></textarea>
+      <h3>2) Receber do outro</h3>
+      <textarea class="paste" id="inCode" placeholder="Cole aqui o código (ou link) recebido"></textarea>
+      <div class="btn-row"><button class="btn" id="applyCode">✅ Aplicar código recebido</button></div>
     </div>`;
 }
 
@@ -952,14 +877,11 @@ function renderDados(main) {
       <div class="btn-row"><button class="btn danger" id="resetBtn">Zerar este álbum</button></div>
     </div>`;
 
-  // --- Sincronização ---
+  // --- Compartilhar por código ---
   const on = (id, fn) => { const el = $('#' + id); if (el) el.onclick = fn; };
-  on('syncCreate', syncCreate);
-  on('syncJoin', () => syncJoin($('#syncJoinCode').value));
-  on('syncCopyCode', () => copyText(state.syncId));
-  on('syncCopyLink', () => copyText(syncLink()));
-  on('syncNow', () => { syncPush().then(syncPull); toast('Sincronizando...'); });
-  on('syncStop', () => { if (confirm('Desligar a sincronização neste celular? As marcações atuais continuam salvas aqui.')) syncStop(); });
+  on('genCode', () => { const c = generateShareCode(); const t = $('#myCode'); if (t) t.value = c; copyText(c); });
+  on('genLink', () => { const l = shareCodeLink(); const t = $('#myCode'); if (t) t.value = l; copyText(l); });
+  on('applyCode', () => { if (applyShareCode($('#inCode').value)) { const t = $('#inCode'); if (t) t.value = ''; } });
 
   $('#importBtn').onclick = () => {
     const r1 = importList($('#pasteOwned').value, 'owned');
@@ -1116,20 +1038,13 @@ if (!state.lastSync || Date.now() - state.lastSync > 3600e3) {
 }
 checkAlerts();
 
-// ---- Sincronização entre celulares: auto-entrar por link e manter em dia ----
-(function initSync() {
-  // link de convite: .../#sync=<código> → entra automaticamente
-  const m = location.hash.match(/sync=([A-Za-z0-9-]+)/);
-  if (m && m[1] && m[1] !== state.syncId) {
-    syncJoin(m[1]);
+// ---- Link de compartilhamento: .../#code=<código> aplica automaticamente ----
+(function initShare() {
+  const m = location.hash.match(/code=([^\s&#]+)/);
+  if (m && m[1]) {
+    if (confirm('Recebeu um álbum compartilhado. Deseja SOMAR as figurinhas dele às suas neste celular?')) {
+      applyShareCode(m[1]);
+    }
     history.replaceState(null, '', location.pathname); // limpa o hash da barra
-  } else if (state.syncId) {
-    syncPull(); // já estava conectado: busca novidades ao abrir
   }
-  // busca novidades a cada 12s (com o app visível) e ao voltar o foco
-  setInterval(() => { if (document.visibilityState === 'visible') syncPull(); }, 12000);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncPull(); });
-  window.addEventListener('focus', syncPull);
-  // ao sair/minimizar, tenta enviar o que estiver pendente
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && syncDirty) syncPush(); });
 })();
