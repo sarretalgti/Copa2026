@@ -40,8 +40,8 @@ function loadState() {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) st = Object.assign(base, JSON.parse(raw));
   } catch (e) { console.warn('Falha ao carregar dados salvos', e); }
-  // Primeira carga: parte das coladas transcritas do álbum do usuário (o:1)
-  if (!st.albums.copa) st.albums.copa = seededAlbumState('copa');
+  // Primeira carga de cada álbum: coladas transcritas (o:1); Legends começa vazio
+  for (const id in ALBUMS) { if (!st.albums[id]) st.albums[id] = seededAlbumState(id); }
   if (!ALBUMS[st.currentAlbum]) st.currentAlbum = 'copa';
   return st;
 }
@@ -61,11 +61,13 @@ function save() {
 // Compartilhar o álbum com outro celular POR CÓDIGO (sem servidor)
 // Gera um código compacto de todo o álbum; o outro cola e as marcações se somam.
 // ============================================================
-function copaOrderedIds() {
-  const list = [];
-  for (const sec of ALBUMS.copa.sections)
-    for (let i = 1; i <= sec.stickers.length; i++) list.push(sec.code + '-' + i);
-  return list;
+// ordem estável de TODAS as figurinhas de TODOS os álbuns (para o código)
+function allOrderedEntries() {
+  const out = [];
+  for (const id of Object.keys(ALBUMS))
+    for (const sec of ALBUMS[id].sections)
+      for (let i = 1; i <= sec.stickers.length; i++) out.push({ a: id, id: sec.code + '-' + i });
+  return out;
 }
 function b64urlFromBytes(bytes) {
   let s = '';
@@ -84,14 +86,14 @@ function b64urlFromStr(s) { return b64urlFromBytes(new TextEncoder().encode(s));
 function strFromB64url(s) { return new TextDecoder().decode(bytesFromB64url(s)); }
 
 function generateShareCode() {
-  const ids = copaOrderedIds();
-  const data = state.albums.copa;
-  const bytes = new Uint8Array(Math.ceil(ids.length / 8));
+  const entries = allOrderedEntries();
+  const bytes = new Uint8Array(Math.ceil(entries.length / 8));
   const dups = {}, labels = {};
-  ids.forEach((id, i) => {
-    if (data.owned[id]) bytes[i >> 3] |= (1 << (i & 7));
-    if (data.dups[id]) dups[i] = data.dups[id];
-    if (data.labels[id]) labels[i] = data.labels[id];
+  entries.forEach((e, i) => {
+    const data = state.albums[e.a];
+    if (data.owned[e.id]) bytes[i >> 3] |= (1 << (i & 7));
+    if (data.dups[e.id]) dups[i] = data.dups[e.id];
+    if (data.labels[e.id]) labels[i] = data.labels[e.id];
   });
   const b = b64urlFromBytes(bytes);
   const extras = {};
@@ -117,14 +119,17 @@ function applyShareCode(raw) {
       bpart = bpart.slice(0, dot);
     }
     const bytes = bytesFromB64url(bpart);
-    const ids = copaOrderedIds();
-    const data = state.albums.copa;
+    const entries = allOrderedEntries();
     let added = 0;
-    ids.forEach((id, i) => {
-      if (bytes[i >> 3] & (1 << (i & 7))) { if (!data.owned[id]) added++; data.owned[id] = true; }
+    entries.forEach((e, i) => {
+      if (bytes[i >> 3] & (1 << (i & 7))) {
+        const data = state.albums[e.a];
+        if (!data.owned[e.id]) added++;
+        data.owned[e.id] = true;
+      }
     });
-    if (extras.d) for (const k in extras.d) { const id = ids[+k]; if (id) { data.dups[id] = Math.max(data.dups[id] || 0, extras.d[k]); data.owned[id] = true; } }
-    if (extras.l) for (const k in extras.l) { const id = ids[+k]; if (id) data.labels[id] = extras.l[k]; }
+    if (extras.d) for (const k in extras.d) { const e = entries[+k]; if (e) { const d = state.albums[e.a]; d.dups[e.id] = Math.max(d.dups[e.id] || 0, extras.d[k]); d.owned[e.id] = true; } }
+    if (extras.l) for (const k in extras.l) { const e = entries[+k]; if (e) state.albums[e.a].labels[e.id] = extras.l[k]; }
     save(); render();
     toast(added ? ('Combinado! ' + added + ' figurinha(s) nova(s) do outro celular. \u2713') : 'Já estava tudo igual — nada novo para somar. \u2713');
     return true;
@@ -268,19 +273,20 @@ let albumQuery = '';
 let markMode = 'own'; // own | dup | dupminus | rename
 
 function renderAlbum(main) {
-  main.innerHTML = `
-    <div class="album-sticky">
-      ${albumSwitcherHtml()}
-      <div class="searchbar">
-        <input id="searchInput" type="search" placeholder="Buscar: país, número, jogador..." value="${esc(albumQuery)}">
-      </div>
+  const modeRow = curAlbum().isLegends ? '' : `
       <div class="mode-row">
         <span class="hint">Ao tocar:</span>
         <button class="chip-btn mode-own ${markMode === 'own' ? 'active' : ''}" data-mode="own">✓ Tenho</button>
         <button class="chip-btn mode-dup ${markMode === 'dup' ? 'active' : ''}" data-mode="dup">+1 Repetida</button>
         <button class="chip-btn mode-dupminus ${markMode === 'dupminus' ? 'active' : ''}" data-mode="dupminus">−1 Repetida</button>
         <button class="chip-btn mode-rename ${markMode === 'rename' ? 'active' : ''}" data-mode="rename">✏️ Nomear</button>
-      </div>
+      </div>`;
+  main.innerHTML = `
+    <div class="album-sticky">
+      ${albumSwitcherHtml()}
+      <div class="searchbar">
+        <input id="searchInput" type="search" placeholder="${curAlbum().isLegends ? 'Buscar jogador...' : 'Buscar: país, número, jogador...'}" value="${esc(albumQuery)}">
+      </div>${modeRow}
     </div>
     <div id="albumSections"></div>`;
 
@@ -315,6 +321,7 @@ function matchesQuery(section, idx) {
 
 function renderAlbumSections() {
   const container = $('#albumSections');
+  if (curAlbum().isLegends) { renderLegends(container); return; }
   const searching = !!albumQuery.trim();
   let html = '';
   for (const section of curSections()) {
@@ -383,6 +390,46 @@ function renderStickerGrid(section, idxs) {
       <button class="btn small secondary" data-bulk="all:${section.code}">✓ Tenho todas</button>
       <button class="btn small danger" data-bulk="none:${section.code}">Limpar seleção</button>
     </div>`;
+}
+
+// Álbum Legends: cada jogador numa linha, com 4 cores selecionáveis
+const LEGEND_COLORS = ['ouro', 'prata', 'bronze', 'bordo'];
+function renderLegends(container) {
+  const data = curData();
+  const q = albumQuery.trim();
+  let rows = '';
+  let shownPlayers = 0;
+  for (const sec of curSections()) {
+    if (q && !norm(sec.name + ' ' + sec.abbr).includes(norm(q))) continue;
+    shownPlayers++;
+    const chips = sec.stickers.map((stk, i) => {
+      const id = stickerId(sec.code, i + 1);
+      const owned = !!data.owned[id];
+      return `<button class="lchip ${LEGEND_COLORS[i]} ${owned ? 'owned' : ''}" data-id="${id}">${esc(stk.label)}</button>`;
+    }).join('');
+    const have = sec.stickers.filter((_, i) => data.owned[stickerId(sec.code, i + 1)]).length;
+    rows += `
+      <div class="legend-row">
+        <span class="flag">${sec.flag}</span>
+        <div class="lg-info"><div class="lg-name">${esc(sec.name)} <small>${esc(sec.abbr)}</small></div>
+          <div class="legend-chips">${chips}</div></div>
+        <span class="lg-count ${have === 4 ? 'done' : ''}">${have}/4</span>
+      </div>`;
+  }
+  container.innerHTML = `
+    <div class="card" style="padding:12px 13px">
+      <p class="help" style="margin:0">⭐ As <b>Legends</b> são figurinhas extras (não colam no álbum). Cada craque tem 4 cores: <b>Ouro, Prata, Bronze, Bordô</b>. Toque na cor que você já tem.</p>
+    </div>
+    ${rows || '<div class="empty">Nenhum jogador encontrado.</div>'}`;
+  container.onclick = e => {
+    const chip = e.target.closest('.lchip');
+    if (!chip) return;
+    const id = chip.dataset.id;
+    if (data.owned[id]) delete data.owned[id]; else data.owned[id] = true;
+    save();
+    renderHeader();
+    renderLegends(container);
+  };
 }
 
 function handleStickerTap(id) {
@@ -520,17 +567,19 @@ function renderFaltam(main) {
   let html = albumSwitcherHtml() + `
     <div class="card">
       <h2>🔍 Figurinhas que faltam <small style="color:var(--text-dim);font-weight:400">· ${total}</small></h2>
-      <p class="help">Toque em "Copiar lista" para mandar no grupo de trocas do WhatsApp.</p>
+      <p class="help">💡 Conseguiu uma na troca? <b>Toque nela aqui</b> que ela já entra como "tenho" e some da lista.</p>
       <div class="btn-row"><button class="btn small" id="copyMissing">📋 Copiar lista</button></div>`;
   if (!missing.length) {
     html += '<div class="empty">🎉 Parabéns! Álbum completo, não falta nenhuma!</div>';
   } else {
     for (const m of missing) {
+      const chips = m.items.map(it =>
+        `<button class="miss-chip" data-fid="${m.section.code}-${it.idx}">${esc((it.n != null && !m.section.legend) ? String(it.n) : it.label)}</button>`).join('');
       html += `
         <div class="missing-line">
-          <span class="flag">${m.section.flag}</span><b>${esc(m.section.name)}</b>
-          <small>(${m.items.length} de ${m.section.stickers.length})</small><br>
-          <span class="nums">${esc(formatItems(m.items, false))}</span>
+          <span class="flag">${m.section.flag}</span><b>${esc(m.section.name)} - ${esc(m.section.abbr || m.section.code)} -</b>
+          <small>(${m.items.length} de ${m.section.stickers.length})</small>
+          <div class="miss-chips">${chips}</div>
         </div>`;
     }
   }
@@ -539,10 +588,16 @@ function renderFaltam(main) {
   const btn = $('#copyMissing');
   if (btn) btn.onclick = () => {
     const text = `FALTAM — ${curAlbum().title}:\n` + missing.map(m =>
-      `${m.section.flag} ${m.section.name}: ${formatItems(m.items, false)}`).join('\n') +
+      `${m.section.flag} ${m.section.name} - ${m.section.abbr || m.section.code} -: ${formatItems(m.items, false)}`).join('\n') +
       `\nTotal: ${total} figurinhas`;
     copyText(text);
   };
+  // tocar numa figurinha faltante = marquei "tenho" (peguei na troca)
+  main.querySelectorAll('[data-fid]').forEach(el => el.onclick = () => {
+    curData().owned[el.dataset.fid] = true;
+    save();
+    renderFaltam(main);
+  });
 }
 
 // ============================================================
@@ -576,7 +631,7 @@ function renderTrocas(main) {
     for (const m of dups) {
       html += `
         <div class="missing-line">
-          <span class="flag">${m.section.flag}</span><b>${esc(m.section.name)}</b>
+          <span class="flag">${m.section.flag}</span><b>${esc(m.section.name)} - ${esc(m.section.abbr || m.section.code)} -</b>
           <small>(${m.items.reduce((a, i) => a + i.d, 0)} repetidas)</small><br>
           <span class="nums trade">${esc(formatItems(m.items, true))}</span>
         </div>`;
@@ -587,7 +642,7 @@ function renderTrocas(main) {
   const btn = $('#copyDups');
   if (btn) btn.onclick = () => {
     const text = `TENHO PARA TROCA — ${curAlbum().title}:\n` + dups.map(m =>
-      `${m.section.flag} ${m.section.name}: ${formatItems(m.items, true)}`).join('\n') +
+      `${m.section.flag} ${m.section.name} - ${m.section.abbr || m.section.code} -: ${formatItems(m.items, true)}`).join('\n') +
       `\nTotal: ${total} figurinhas`;
     copyText(text);
   };
