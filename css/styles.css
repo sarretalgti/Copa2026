@@ -194,11 +194,32 @@ nav.tabs button.active { color: var(--green); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Figurinha que já tenho: linha de luz "cometa" circulando a borda + brilho */
+@property --ang { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
 .sticker.owned {
-  border: 1.5px solid var(--green-dark);
-  background: linear-gradient(160deg, #14361f, #0f2c2a);
+  --ang: 0deg;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(160deg, #14361f, #0f2c2a) padding-box,
+    conic-gradient(from var(--ang),
+      rgba(46,204,113,.28) 0deg,
+      rgba(46,204,113,.28) 250deg,
+      #7dffb4 318deg,
+      #ffffff 340deg,
+      #7dffb4 360deg) border-box;
+  box-shadow: 0 0 9px rgba(46,204,113,.38), inset 0 0 11px rgba(46,204,113,.12);
+  animation: stickerGlow 3s linear infinite;
 }
-.sticker.owned .num { color: var(--green); }
+.sticker.owned .num { color: var(--green); text-shadow: 0 0 6px rgba(46,204,113,.5); }
+@keyframes stickerGlow { to { --ang: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .sticker.owned {
+    animation: none;
+    background:
+      linear-gradient(160deg, #14361f, #0f2c2a) padding-box,
+      linear-gradient(135deg, #2ecc71, #8bffbd) border-box;
+  }
+}
 .sticker .dupbadge {
   position: absolute;
   top: -6px; right: -5px;
@@ -326,7 +347,7 @@ textarea.paste {
   opacity: .55;
 }
 .lchip:active { transform: scale(.93); }
-.lchip.owned { opacity: 1; color: #1a1a1a; }
+.lchip.owned { opacity: 1; color: #1a1a1a; box-shadow: 0 0 8px rgba(255,255,255,.28); }
 .lchip.ouro.owned { background: linear-gradient(135deg,#f7d774,#c99700); border-color: #c99700; }
 .lchip.prata.owned { background: linear-gradient(135deg,#e8ecef,#aeb6bd); border-color: #aeb6bd; }
 .lchip.bronze.owned { background: linear-gradient(135deg,#e0a173,#a0642f); border-color: #a0642f; color: #2a1200; }
