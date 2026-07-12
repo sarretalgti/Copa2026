@@ -353,6 +353,27 @@ textarea.paste {
 .lchip.bronze.owned { background: linear-gradient(135deg,#e0a173,#a0642f); border-color: #a0642f; color: #2a1200; }
 .lchip.bordo.owned { background: linear-gradient(135deg,#b0568a,#7a1f52); border-color: #7a1f52; color: #fff; }
 
+/* ---- Dicas (assistente) ---- */
+.dica-hero { background: linear-gradient(150deg, #16233a, #1a2f24); border-color: #2c4a3a; }
+.dica-diag { display: flex; gap: 8px; }
+.dica-diag > div { flex: 1; background: rgba(0,0,0,.25); border-radius: 8px; padding: 7px 4px; text-align: center; }
+.dica-diag b { display: block; font-size: 1.05rem; }
+.dica-diag span { font-size: .58rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .3px; }
+.dica-goto {
+  display: flex; align-items: center; gap: 9px;
+  padding: 10px 4px; border-bottom: 1px solid #1d2a3b; cursor: pointer;
+}
+.dica-goto:last-child { border-bottom: none; }
+.dica-goto .flag { font-size: 1.3rem; }
+.dica-goto b { font-size: .9rem; }
+.dica-goto small { color: var(--text-dim); margin-left: 2px; }
+.dica-goto .dica-need { margin-left: auto; font-size: .78rem; font-weight: 700; color: var(--amber); white-space: nowrap; }
+.dica-goto:active { background: var(--bg-card-2); }
+.dica-item { display: flex; gap: 11px; padding: 10px 2px; border-bottom: 1px solid #1d2a3b; }
+.dica-item:last-child { border-bottom: none; }
+.dica-item .dica-ic { font-size: 1.35rem; line-height: 1.3; }
+.dica-item b { font-size: .88rem; }
+
 /* ---- Jogos ---- */
 .match-day-head {
   font-size: .8rem;

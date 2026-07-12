@@ -260,6 +260,7 @@ function render() {
     case 'album': renderAlbum(main); break;
     case 'resumo': renderResumo(main); break;
     case 'faltam': renderFaltam(main); break;
+    case 'dicas': renderDicas(main); break;
     case 'trocas': renderTrocas(main); break;
     case 'jogos': renderJogos(main); break;
     case 'dados': renderDados(main); break;
@@ -646,6 +647,88 @@ function renderTrocas(main) {
       `\nTotal: ${total} figurinhas`;
     copyText(text);
   };
+}
+
+// ============================================================
+// ABA DICAS — assistente que analisa o álbum e sugere como completar
+// ============================================================
+function renderDicas(main) {
+  const g = globalStats();
+  const isLeg = curAlbum().isLegends;
+  const missing = missingBySection().sort((a, b) => a.items.length - b.items.length);
+  const dups = dupsBySection();
+  const totalDups = dups.reduce((s, m) => s + m.items.reduce((a, i) => a + i.d, 0), 0);
+  const complete = curSections().length - missing.length;
+  const almost = missing.filter(m => m.items.length <= 3 && m.items.length > 0);
+  const pct = g.total ? (g.owned / g.total) * 100 : 0;
+
+  // estimativa simples de envelopes p/ terminar (colecionador avulso, com repetidas crescentes)
+  const envEstimate = Math.ceil((g.missing / 5) * (1 + (g.missing < 100 ? (100 - g.missing) / 60 : 0)));
+
+  let html = albumSwitcherHtml() + `
+    <div class="card dica-hero">
+      <h2>🤖 Assistente do álbum</h2>
+      <p class="help" style="margin-bottom:6px">Analisei o seu <b>${esc(curAlbum().title)}</b>:</p>
+      <div class="dica-diag">
+        <div><b>${g.owned}/${g.total}</b><span>tenho (${pct.toFixed(0)}%)</span></div>
+        <div><b style="color:var(--red)">${g.missing}</b><span>faltam</span></div>
+        <div><b style="color:var(--amber)">${totalDups}</b><span>repetidas</span></div>
+        <div><b style="color:var(--green)">${complete}</b><span>${isLeg ? 'craques ok' : 'seções ok'}</span></div>
+      </div>
+    </div>`;
+
+  // 1) Quase lá
+  if (almost.length) {
+    html += `<div class="card"><h2>🔥 Ataque nas quase completas</h2>
+      <p class="help">Faltam pouquíssimas nestas — priorize! Toque para ir direto e conferir os números.</p>`;
+    for (const m of almost.slice(0, 12)) {
+      html += `<div class="dica-goto" data-goto="${m.section.code}">
+        <span class="flag">${m.section.flag}</span>
+        <b>${esc(m.section.name)}</b> <small>${esc(m.section.abbr || m.section.code)}</small>
+        <span class="dica-need">faltam ${m.items.length}</span></div>`;
+    }
+    html += `</div>`;
+  }
+
+  // 2) Estratégia
+  const tips = [];
+  if (!isLeg) {
+    if (g.missing > 150) tips.push(['📦', 'Compre em caixa fechada', 'Caixa com 50–100 envelopes sai bem mais barato por figurinha do que comprar avulso, e no começo quase tudo é novidade.']);
+    tips.push(['🔁', 'Troque suas repetidas', totalDups > 0 ? `Você tem <b>${totalDups}</b> repetidas — são suas "moedas de troca". Veja a aba Trocas e mande a lista nos grupos.` : 'Assim que juntar repetidas, use-as para trocar pelas que faltam. Uma repetida vale por uma faltante.']);
+    tips.push(['👥', 'Entre em grupos de troca', 'Grupos de WhatsApp/Facebook da sua cidade e feiras de troca (bancas, shoppings) são o jeito mais rápido de fechar o álbum.']);
+    if (g.missing <= 60) tips.push(['✉️', 'Reta final: encomende as que faltam', 'Com poucas faltando, o serviço oficial da Panini de <b>figurinhas faltantes</b> (você pede pelos números) costuma sair mais barato que ficar abrindo envelope.']);
+    tips.push(['📉', 'Regra de ouro', 'As últimas ~10% custam mais que os primeiros 90% (probabilidade). Perto do fim, aposte em troca e encomenda, não em envelope aleatório.']);
+    tips.push(['🤝', 'Junte-se com alguém', 'Comprem envelopes juntos e dividam: as repetidas de um viram as faltantes do outro. (Vocês já podem sincronizar pelo código na aba Dados!)']);
+  } else {
+    tips.push(['⭐', 'Legends são raras', 'As figurinhas Legends (Ouro/Prata/Bronze/Bordô) são extras e saem com baixa frequência nos envelopes — não conte só com sorte.']);
+    tips.push(['🔁', 'Troca é o caminho', 'A forma mais eficiente é trocar/comprar avulso as cores específicas que faltam, em grupos ou marketplaces (Mercado Livre, OLX).']);
+    tips.push(['🥇', 'Ouro é a mais difícil', 'Em geral a variação Ouro é a mais rara. Se achar por um preço justo, vale garantir.']);
+  }
+  html += `<div class="card"><h2>💡 Estratégia pra completar</h2>`;
+  for (const [ic, t, d] of tips) {
+    html += `<div class="dica-item"><span class="dica-ic">${ic}</span><div><b>${t}</b><br><span class="help" style="margin:0">${d}</span></div></div>`;
+  }
+  html += `</div>`;
+
+  // 3) resumo de esforço
+  if (!isLeg && g.missing > 0) {
+    html += `<div class="card"><h2>🎯 Meta</h2>
+      <p class="help">Faltam <b>${g.missing}</b> figurinhas. Comprando só avulso, seriam ~<b>${envEstimate}</b> envelopes (e cada vez mais repetidas). Por isso: <b>troca + encomenda na reta final</b> é o segredo pra não gastar à toa. 💪</p></div>`;
+  }
+  if (g.missing === 0) {
+    html += `<div class="card"><div class="empty">🏆 Álbum completo! Não falta nenhuma. Parabéns!</div></div>`;
+  }
+
+  main.innerHTML = html;
+  main.querySelectorAll('[data-goto]').forEach(el => el.onclick = () => {
+    state.openSections = { [el.dataset.goto]: true };
+    albumQuery = '';
+    setTab('album');
+    setTimeout(() => {
+      const t = $(`.team-section[data-code="${el.dataset.goto}"]`);
+      if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  });
 }
 
 function copyText(text) {
