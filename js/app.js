@@ -567,56 +567,55 @@ function formatItems(items, withCount) {
 }
 
 function renderFaltam(main) {
-  const missing = missingBySection();
-  const total = missing.reduce((s, m) => s + m.items.length, 0);
+  const data = curData();
+  // percorre TODAS as seções na ordem do álbum; completas ficam na sequência com "COMPLETO"
+  const rows = [];
+  let totalMissing = 0, doneCount = 0;
+  const doneAbbr = [];
+  for (const s of curSections()) {
+    const items = [];
+    s.stickers.forEach((stk, i) => {
+      if (!data.owned[stickerId(s.code, i + 1)]) items.push({ idx: i + 1, n: stk.n, label: stickerLabel(s, i + 1) });
+    });
+    if (items.length) totalMissing += items.length;
+    else { doneCount++; doneAbbr.push(s.abbr || s.code); }
+    rows.push({ section: s, items });
+  }
+
   let html = albumSwitcherHtml() + `
     <div class="card">
-      <h2>🔍 Figurinhas que faltam <small style="color:var(--text-dim);font-weight:400">· ${total}</small></h2>
-      <p class="help">💡 Conseguiu uma na troca? <b>Toque nela aqui</b> que ela já entra como "tenho" e some da lista.</p>
+      <h2>🔍 Faltam <small style="color:var(--text-dim);font-weight:400">· ${totalMissing}</small> &nbsp;·&nbsp; <span style="color:var(--green)">✅ ${doneCount} completas</span></h2>
+      <p class="help">💡 Conseguiu uma na troca? <b>Toque nela</b> que já entra como "tenho". Os países completos aparecem na sequência com <b>COMPLETO</b>.</p>
       <div class="btn-row"><button class="btn small" id="copyMissing">📋 Copiar lista</button></div>`;
-  if (!missing.length) {
-    html += '<div class="empty">🎉 Parabéns! Álbum completo, não falta nenhuma!</div>';
-  } else {
-    for (const m of missing) {
-      const chips = m.items.map(it =>
-        `<button class="miss-chip" data-fid="${m.section.code}-${it.idx}">${esc((it.n != null && !m.section.legend) ? String(it.n) : it.label)}</button>`).join('');
+
+  for (const r of rows) {
+    const s = r.section;
+    if (r.items.length === 0) {
+      html += `<div class="missing-line done-line">
+        <span class="flag">${s.flag}</span><b>${esc(s.name)} - ${esc(s.abbr || s.code)} -</b>
+        <span class="done-tag">COMPLETO ✓</span></div>`;
+    } else {
+      const chips = r.items.map(it =>
+        `<button class="miss-chip" data-fid="${s.code}-${it.idx}">${esc((it.n != null && !s.legend) ? String(it.n) : it.label)}</button>`).join('');
       html += `
         <div class="missing-line">
-          <span class="flag">${m.section.flag}</span><b>${esc(m.section.name)} - ${esc(m.section.abbr || m.section.code)} -</b>
-          <small>(${m.items.length} de ${m.section.stickers.length})</small>
+          <span class="flag">${s.flag}</span><b>${esc(s.name)} - ${esc(s.abbr || s.code)} -</b>
+          <small>(faltam ${r.items.length} de ${s.stickers.length})</small>
           <div class="miss-chips">${chips}</div>
         </div>`;
     }
   }
   html += '</div>';
 
-  // seções JÁ COMPLETAS (útil na hora de trocar: "esse país eu já fechei")
-  const missingCodes = new Set(missing.map(m => m.section.code));
-  const done = curSections().filter(s => !missingCodes.has(s.code));
-  if (done.length) {
-    html += `<div class="card">
-      <h2>✅ Já completei <small style="color:var(--text-dim);font-weight:400">· ${done.length}</small></h2>
-      <p class="help">Estas você já fechou — não precisa mais destas figurinhas.</p>`;
-    for (const s of done) {
-      html += `<div class="missing-line done-line">
-        <span class="flag">${s.flag}</span><b>${esc(s.name)} - ${esc(s.abbr || s.code)} -</b>
-        <span class="done-tag">COMPLETO ✓</span></div>`;
-    }
-    html += `<div class="btn-row"><button class="btn small secondary" id="copyDone">📋 Copiar completas</button></div></div>`;
-  }
-
   main.innerHTML = html;
   const btn = $('#copyMissing');
   if (btn) btn.onclick = () => {
-    const text = `FALTAM — ${curAlbum().title}:\n` + missing.map(m =>
-      `${m.section.flag} ${m.section.name} - ${m.section.abbr || m.section.code} -: ${formatItems(m.items, false)}`).join('\n') +
-      `\nJÁ COMPLETEI: ${done.map(s => s.abbr || s.code).join(', ') || '—'}` +
-      `\nTotal que falta: ${total} figurinhas`;
+    const missText = rows.filter(r => r.items.length).map(r =>
+      `${r.section.flag} ${r.section.name} - ${r.section.abbr || r.section.code} -: ${formatItems(r.items, false)}`).join('\n');
+    const text = `FALTAM — ${curAlbum().title}:\n` + (missText || '(nada!)') +
+      `\n\n✅ JÁ COMPLETEI: ${doneAbbr.join(', ') || '—'}` +
+      `\nTotal que falta: ${totalMissing} figurinhas`;
     copyText(text);
-  };
-  const btnDone = $('#copyDone');
-  if (btnDone) btnDone.onclick = () => {
-    copyText(`JÁ COMPLETEI — ${curAlbum().title}:\n` + done.map(s => `${s.flag} ${s.name} (${s.abbr || s.code})`).join('\n'));
   };
   // tocar numa figurinha faltante = marquei "tenho" (peguei na troca)
   main.querySelectorAll('[data-fid]').forEach(el => el.onclick = () => {
