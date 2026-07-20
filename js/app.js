@@ -406,7 +406,7 @@ function renderLegends(container) {
     const chips = sec.stickers.map((stk, i) => {
       const id = stickerId(sec.code, i + 1);
       const owned = !!data.owned[id];
-      const cls = golden ? 'ouro' : (LEGEND_COLORS[i] || 'ouro');
+      const cls = golden ? 'ouro gchip' : (LEGEND_COLORS[i] || 'ouro');
       const label = golden ? (owned ? '★ Tenho' : 'Tenho?') : stk.label;
       return `<button class="lchip ${cls} ${owned ? 'owned' : ''}" data-id="${id}">${esc(label)}</button>`;
     }).join('');
