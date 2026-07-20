@@ -274,7 +274,8 @@ let albumQuery = '';
 let markMode = 'own'; // own | dup | dupminus | rename
 
 function renderAlbum(main) {
-  const modeRow = curAlbum().isLegends ? '' : `
+  const cardsAlbum = curAlbum().isLegends || curAlbum().isGolden;
+  const modeRow = cardsAlbum ? '' : `
       <div class="mode-row">
         <span class="hint">Ao tocar:</span>
         <button class="chip-btn mode-own ${markMode === 'own' ? 'active' : ''}" data-mode="own">✓ Tenho</button>
@@ -286,7 +287,7 @@ function renderAlbum(main) {
     <div class="album-sticky">
       ${albumSwitcherHtml()}
       <div class="searchbar">
-        <input id="searchInput" type="search" placeholder="${curAlbum().isLegends ? 'Buscar jogador...' : 'Buscar: país, número, jogador...'}" value="${esc(albumQuery)}">
+        <input id="searchInput" type="search" placeholder="${cardsAlbum ? 'Buscar jogador...' : 'Buscar: país, número, jogador...'}" value="${esc(albumQuery)}">
       </div>${modeRow}
     </div>
     <div id="albumSections"></div>`;
@@ -322,7 +323,7 @@ function matchesQuery(section, idx) {
 
 function renderAlbumSections() {
   const container = $('#albumSections');
-  if (curAlbum().isLegends) { renderLegends(container); return; }
+  if (curAlbum().isLegends || curAlbum().isGolden) { renderLegends(container); return; }
   const searching = !!albumQuery.trim();
   let html = '';
   for (const section of curSections()) {
@@ -393,34 +394,37 @@ function renderStickerGrid(section, idxs) {
     </div>`;
 }
 
-// Álbum Legends: cada jogador numa linha, com 4 cores selecionáveis
+// Álbuns de cards por jogador (Legends: 4 cores | Golden Ballers: 1 card dourado)
 const LEGEND_COLORS = ['ouro', 'prata', 'bronze', 'bordo'];
 function renderLegends(container) {
   const data = curData();
+  const golden = curAlbum().isGolden;
   const q = albumQuery.trim();
   let rows = '';
-  let shownPlayers = 0;
   for (const sec of curSections()) {
     if (q && !norm(sec.name + ' ' + sec.abbr).includes(norm(q))) continue;
-    shownPlayers++;
     const chips = sec.stickers.map((stk, i) => {
       const id = stickerId(sec.code, i + 1);
       const owned = !!data.owned[id];
-      return `<button class="lchip ${LEGEND_COLORS[i]} ${owned ? 'owned' : ''}" data-id="${id}">${esc(stk.label)}</button>`;
+      const cls = golden ? 'ouro' : (LEGEND_COLORS[i] || 'ouro');
+      const label = golden ? (owned ? '★ Tenho' : 'Tenho?') : stk.label;
+      return `<button class="lchip ${cls} ${owned ? 'owned' : ''}" data-id="${id}">${esc(label)}</button>`;
     }).join('');
+    const total = sec.stickers.length;
     const have = sec.stickers.filter((_, i) => data.owned[stickerId(sec.code, i + 1)]).length;
     rows += `
       <div class="legend-row">
         <span class="flag">${sec.flag}</span>
         <div class="lg-info"><div class="lg-name">${esc(sec.name)} <small>${esc(sec.abbr)}</small></div>
           <div class="legend-chips">${chips}</div></div>
-        <span class="lg-count ${have === 4 ? 'done' : ''}">${have}/4</span>
+        <span class="lg-count ${have === total ? 'done' : ''}">${have}/${total}</span>
       </div>`;
   }
+  const intro = golden
+    ? '🏅 Os <b>Golden Ballers</b> são 9 cards dourados super-raros do Adrenalyn XL. Toque no jogador que você já tem.'
+    : '⭐ As <b>Legends</b> são figurinhas extras (não colam no álbum). Cada craque tem 4 cores: <b>Ouro, Prata, Bronze, Bordô</b>. Toque na cor que você já tem.';
   container.innerHTML = `
-    <div class="card" style="padding:12px 13px">
-      <p class="help" style="margin:0">⭐ As <b>Legends</b> são figurinhas extras (não colam no álbum). Cada craque tem 4 cores: <b>Ouro, Prata, Bronze, Bordô</b>. Toque na cor que você já tem.</p>
-    </div>
+    <div class="card" style="padding:12px 13px"><p class="help" style="margin:0">${intro}</p></div>
     ${rows || '<div class="empty">Nenhum jogador encontrado.</div>'}`;
   container.onclick = e => {
     const chip = e.target.closest('.lchip');
@@ -585,13 +589,34 @@ function renderFaltam(main) {
     }
   }
   html += '</div>';
+
+  // seções JÁ COMPLETAS (útil na hora de trocar: "esse país eu já fechei")
+  const missingCodes = new Set(missing.map(m => m.section.code));
+  const done = curSections().filter(s => !missingCodes.has(s.code));
+  if (done.length) {
+    html += `<div class="card">
+      <h2>✅ Já completei <small style="color:var(--text-dim);font-weight:400">· ${done.length}</small></h2>
+      <p class="help">Estas você já fechou — não precisa mais destas figurinhas.</p>`;
+    for (const s of done) {
+      html += `<div class="missing-line done-line">
+        <span class="flag">${s.flag}</span><b>${esc(s.name)} - ${esc(s.abbr || s.code)} -</b>
+        <span class="done-tag">COMPLETO ✓</span></div>`;
+    }
+    html += `<div class="btn-row"><button class="btn small secondary" id="copyDone">📋 Copiar completas</button></div></div>`;
+  }
+
   main.innerHTML = html;
   const btn = $('#copyMissing');
   if (btn) btn.onclick = () => {
     const text = `FALTAM — ${curAlbum().title}:\n` + missing.map(m =>
       `${m.section.flag} ${m.section.name} - ${m.section.abbr || m.section.code} -: ${formatItems(m.items, false)}`).join('\n') +
-      `\nTotal: ${total} figurinhas`;
+      `\nJÁ COMPLETEI: ${done.map(s => s.abbr || s.code).join(', ') || '—'}` +
+      `\nTotal que falta: ${total} figurinhas`;
     copyText(text);
+  };
+  const btnDone = $('#copyDone');
+  if (btnDone) btnDone.onclick = () => {
+    copyText(`JÁ COMPLETEI — ${curAlbum().title}:\n` + done.map(s => `${s.flag} ${s.name} (${s.abbr || s.code})`).join('\n'));
   };
   // tocar numa figurinha faltante = marquei "tenho" (peguei na troca)
   main.querySelectorAll('[data-fid]').forEach(el => el.onclick = () => {

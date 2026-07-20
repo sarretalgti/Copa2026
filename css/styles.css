@@ -302,6 +302,20 @@ textarea.paste {
 .missing-line .nums.trade { color: var(--amber); }
 .missing-line small { color: var(--text-dim); }
 
+/* seções já completas na aba Faltam */
+.missing-line.done-line { display: flex; align-items: center; gap: 4px; }
+.done-line .done-tag {
+  margin-left: auto;
+  font-size: .68rem;
+  font-weight: 700;
+  color: var(--green);
+  background: rgba(46,204,113,.14);
+  border: 1px solid var(--green-dark);
+  border-radius: 99px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
 /* chips tocáveis das figurinhas que faltam */
 .miss-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
 .miss-chip {

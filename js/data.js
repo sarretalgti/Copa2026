@@ -145,9 +145,23 @@ const LEGENDS_SECTIONS = [
   { code: "L22", name: "Vozinha", flag: "🇨🇻", group: null, abbr: "CPV", legend: true, stickers: [{n:1,label:"Ouro"},{n:2,label:"Prata"},{n:3,label:"Bronze"},{n:4,label:"Bordô"}] },
 ];
 
+// Golden Ballers — Adrenalyn XL (9 cards dourados super-raros), 1 por jogador
+const GOLDEN_SECTIONS = [
+  { code: 'G01', name: 'Lionel Messi', flag: '🇦🇷', group: null, abbr: 'ARG', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'G02', name: 'Cristiano Ronaldo', flag: '🇵🇹', group: null, abbr: 'POR', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'G03', name: 'Kylian Mbappé', flag: '🇫🇷', group: null, abbr: 'FRA', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'G04', name: 'Vinícius Júnior', flag: '🇧🇷', group: null, abbr: 'BRA', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'G05', name: 'Mohamed Salah', flag: '🇪🇬', group: null, abbr: 'EGY', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'G06', name: 'Jude Bellingham', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', group: null, abbr: 'ENG', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'G07', name: 'Bukayo Saka', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', group: null, abbr: 'ENG', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'G08', name: 'Son Heung-min', flag: '🇰🇷', group: null, abbr: 'KOR', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'G09', name: 'Lamine Yamal', flag: '🇪🇸', group: null, abbr: 'ESP', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+];
+
 const ALBUMS = {
   copa: { id: 'copa', title: 'Álbum Copa 2026', short: '📗 Copa 2026', sections: COPA_SECTIONS },
   legends: { id: 'legends', title: 'Legends (extras)', short: '⭐ Legends', sections: LEGENDS_SECTIONS, isLegends: true },
+  golden: { id: 'golden', title: 'Golden Ballers', short: '🏅 Golden Ballers', sections: GOLDEN_SECTIONS, isGolden: true },
 };
 for (const album of Object.values(ALBUMS)) {
   album.total = album.sections.reduce((s, sec) => s + sec.stickers.length, 0);
