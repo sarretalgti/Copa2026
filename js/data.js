@@ -152,7 +152,7 @@ const GOLDEN_SECTIONS = [
   { code: 'G03', name: 'Kylian Mbappé', flag: '🇫🇷', group: null, abbr: 'FRA', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
   { code: 'G04', name: 'Vinícius Júnior', flag: '🇧🇷', group: null, abbr: 'BRA', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
   { code: 'G05', name: 'Mohamed Salah', flag: '🇪🇬', group: null, abbr: 'EGY', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
-  { code: 'G06', name: 'Jude Bellingham', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', group: null, abbr: 'ENG', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'G06', name: 'Erling Haaland', flag: '🇳🇴', group: null, abbr: 'NOR', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
   { code: 'G07', name: 'Bukayo Saka', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', group: null, abbr: 'ENG', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
   { code: 'G08', name: 'Son Heung-min', flag: '🇰🇷', group: null, abbr: 'KOR', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
   { code: 'G09', name: 'Lamine Yamal', flag: '🇪🇸', group: null, abbr: 'ESP', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
