@@ -1,0 +1,17 @@
+{
+  "name": "Álbum Copa 2026 do JL",
+  "short_name": "Copa 2026 JL",
+  "description": "Controle do álbum de figurinhas da Copa do Mundo 2026: tenho, faltam, repetidas, trocas, agenda de jogos e resultados.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0d1421",
+  "theme_color": "#0d1421",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230d1421'/><text x='50' y='68' font-size='55' text-anchor='middle'>⚽</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
