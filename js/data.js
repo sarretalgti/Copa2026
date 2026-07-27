@@ -147,15 +147,15 @@ const LEGENDS_SECTIONS = [
 
 // Golden Ballers — Adrenalyn XL (9 cards dourados super-raros), 1 por jogador
 const GOLDEN_SECTIONS = [
-  { code: 'G01', name: 'Lionel Messi', flag: '🇦🇷', group: null, abbr: 'ARG', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
-  { code: 'G02', name: 'Cristiano Ronaldo', flag: '🇵🇹', group: null, abbr: 'POR', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
-  { code: 'G03', name: 'Kylian Mbappé', flag: '🇫🇷', group: null, abbr: 'FRA', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
-  { code: 'G04', name: 'Vinícius Júnior', flag: '🇧🇷', group: null, abbr: 'BRA', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
-  { code: 'G05', name: 'Mohamed Salah', flag: '🇪🇬', group: null, abbr: 'EGY', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
-  { code: 'G06', name: 'Erling Haaland', flag: '🇳🇴', group: null, abbr: 'NOR', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
-  { code: 'G07', name: 'Bukayo Saka', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', group: null, abbr: 'ENG', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
-  { code: 'G08', name: 'Son Heung-min', flag: '🇰🇷', group: null, abbr: 'KOR', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
-  { code: 'G09', name: 'Lamine Yamal', flag: '🇪🇸', group: null, abbr: 'ESP', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'GB01', name: 'Lionel Messi', flag: '🇦🇷', group: null, abbr: 'ARG', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'GB02', name: 'Vinícius Júnior', flag: '🇧🇷', group: null, abbr: 'BRA', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'GB03', name: 'Mohamed Salah', flag: '🇪🇬', group: null, abbr: 'EGY', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'GB04', name: 'Harry Kane', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', group: null, abbr: 'ENG', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'GB05', name: 'Kylian Mbappé', flag: '🇫🇷', group: null, abbr: 'FRA', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'GB06', name: 'Son Heung-min', flag: '🇰🇷', group: null, abbr: 'KOR', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'GB07', name: 'Erling Haaland', flag: '🇳🇴', group: null, abbr: 'NOR', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'GB08', name: 'Cristiano Ronaldo', flag: '🇵🇹', group: null, abbr: 'POR', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
+  { code: 'GB09', name: 'Lamine Yamal', flag: '🇪🇸', group: null, abbr: 'ESP', legend: true, stickers: [{ n: 1, label: 'Golden Baller' }] },
 ];
 
 const ALBUMS = {
